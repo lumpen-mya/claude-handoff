@@ -26,6 +26,8 @@ Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type
 | Rules-only memory beats full SOP text (66.5% vs 52.4%) | GenericAgent §4.3.2, Table 5 |
 | File-based navigation improves accuracy (+17.3% avg), but is not cheaper than RAG | Coding Agents…, Table 1, Table 5 |
 
+**Not yet measured for this plugin:** the numbers above are from the papers. Per-session token metrics are now logged with `scripts/session_tokens.py` during the test period.
+
 **Not yet evidenced (our hypotheses):** when splitting into parallel sessions pays off (3+ files or ~20+ min per bundle, 2–3 workers). We are measuring this.
 
 ## Install

@@ -33,6 +33,7 @@ The coordinator reads context once and gives workers only a brief. Workers do no
    - **Never overwrite or delete an existing file.** If the name exists, append a `## Addendum — HH:MM` section at the end (append, not Write). Record changed facts as "Correction:" in the new section; leave the original text as is.
    - Same rule for any other markdown you update (CLAUDE.md, specs, memory): add or correct only; delete or rewrite only after the user confirms.
 2. Note uncommitted changes and running processes (dev servers, emulators, ports).
+   - Measure: run `python3 <this skill folder>/scripts/session_tokens.py --json` and paste the result as the "Metrics" line at the end of the note. If work was split, run it for each worker session too.
 3. Open the new session — only after step 4 passes.
    - Claude desktop app: start a fresh session with the brief "read `<note path>` and continue".
    - CLI: tell the user to run `claude "read <note path> and continue"`.
@@ -56,6 +57,7 @@ The coordinator reads context once and gives workers only a brief. Workers do no
 5. Dead ends: failed approaches not to repeat
 6. Remaining plan: ordered subgoals, the immediate next command/edit, completion criteria
 7. Environment: running servers, devices, ports, test accounts
+Metrics: session_tokens.py --json output (minutes, requests, input/output tokens, cache hit rate, peak context)
 ```
 - For truncated output, give a narrow command to retrieve it instead of the content. Never invent observations.
 - Point to files by path and line instead of copying content.
