@@ -22,6 +22,7 @@ The coordinator reads context once and gives workers only a brief. Workers do no
 - Practical ceiling: 2–3 workers, at most 4 — beyond that review becomes the bottleneck.
 - Brief must include: target file:line and the change / files not to touch / done criteria and verify command / "ask, don't guess" / report format (changed files, verification result, unverified items).
 - The coordinator reviews worker diffs and re-runs verification once.
+- Report each worker as soon as it finishes: when a worker's completion note arrives, verify its result (commit/diff, check output) and tell the user right away (what landed, what is unverified, the next step) so they can wrap up whichever finishes first. Never hold results until all workers are done.
 - Criteria are hypotheses: log elapsed time and tokens of delegated bundles in the handoff note and adjust.
 
 ## When to hand off
