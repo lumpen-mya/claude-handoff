@@ -1,10 +1,18 @@
 # claude-handoff
 
-> **Status: experimental (v0.1, in progress).** The thresholds below are hypotheses being measured in real work. Please try it and leave feedback — see [Feedback](#feedback).
+**Stop paying for long context.** A Claude Code skill that compacts at task boundaries into a structured handoff note and continues in a fresh session — based on NVIDIA's *"You don't need long context"* (2026).
 
-A Claude Code skill for working with **short contexts**: compact at task boundaries into a structured handoff note, continue in a fresh session, and split work across sessions only when it pays off.
+![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.1-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
 
-Based on Belcak et al., ["You don't need long context"](https://arxiv.org/abs/2611.05306) (NVIDIA, 2026), plus [GenericAgent](https://arxiv.org/abs/2604.17091) and [Coding Agents are Effective Long-Context Processors](https://arxiv.org/abs/2603.20432). See `plugins/handoff/skills/handoff/reference.md` for the cited findings.
+> In the paper, frequent structured compaction kept Opus accuracy within **−3.7 to +5.6 pp** of baseline while estimated cost fell **2.2–8.8×**; selective reading of long inputs cut estimated cost **6.5–54×**. This skill turns those findings into a daily workflow.
+
+**Install (one line, in your terminal):**
+```
+claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install handoff@claude-handoff
+```
+Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type `/handoff`.
+
+> **Status: experimental (v0.1).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
 
 ## Evidence
 
@@ -22,11 +30,15 @@ Based on Belcak et al., ["You don't need long context"](https://arxiv.org/abs/26
 
 ## Install
 
+Terminal:
+```
+claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install handoff@claude-handoff
+```
+Inside Claude Code:
 ```
 /plugin marketplace add lumpen-mya/claude-handoff
 /plugin install handoff@claude-handoff
 ```
-
 Or copy `plugins/handoff/skills/handoff/` to `~/.claude/skills/handoff/`.
 
 ## What it does
@@ -73,11 +85,11 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 
 근거는 NVIDIA 논문 ["You don't need long context"](https://arxiv.org/abs/2611.05306)입니다. 작업 경계에서 인수인계 형식으로 압축하면 정확도는 거의 그대로이고 비용은 줄어듭니다.
 
-**설치**
+**설치 (터미널 한 줄)**
 ```
-/plugin marketplace add lumpen-mya/claude-handoff
-/plugin install handoff@claude-handoff
+claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install handoff@claude-handoff
 ```
+또는 Claude에게 "lumpen-mya/claude-handoff 플러그인 설치해줘"라고 말하면 됩니다.
 
 **주요 동작**
 - **한 세션에 한 타이틀:** 세션 범위를 타이틀 하나로 정합니다. 범위 밖 요청은 새 세션으로 나누자고 제안합니다.
