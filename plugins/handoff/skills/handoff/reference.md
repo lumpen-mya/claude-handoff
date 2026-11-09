@@ -31,6 +31,13 @@ Note: Cao et al. "Coding Agents are Effective Long-Context Processors" (arXiv 26
 ## Avoid failure loops
 - Escalate: after 2 failed attempts at the same fix, change approach or gather info; on the 3rd, ask the user (GenericAgent §2.3.3).
 
+## Output tokens (put these in your CLAUDE.md, not in a skill)
+Prompt caching discounts input only; output tokens get no cache discount and are priced higher. Rules that should hold in every turn belong in CLAUDE.md, because a skill loads only when invoked.
+- Answer with the conclusion and key points only; add tables or background only when asked.
+- Edit only what changed; never re-paste content already shown.
+
+Observation from our own sessions (test period, not a controlled study): 97–99% of input tokens were cache reads, so input volume is driven by context size — sessions whose context peaked at 600–750k tokens accumulated 190M–550M input tokens, versus 5M–13M for sessions that stayed under ~175k.
+
 ## Weak evidence (do not treat as rules)
 - "<30k tokens is the hallucination-free limit" — no experiment (GenericAgent §2.1.4).
 - "Fewer tokens = better performance" — authors call it an observation, not a controlled result (GenericAgent §5).
