@@ -20,7 +20,7 @@ The coordinator reads context once and gives workers only a brief. Workers do no
 - Don't split: 1–2 edit tasks, ordered dependencies (shared core → screens), several bundles touching the same file.
 - If files may overlap, give each worker its own git worktree.
 - Practical ceiling: 2–3 workers, at most 4 — beyond that review becomes the bottleneck.
-- Brief must include: target file:line and the change / files not to touch / done criteria and verify command / "ask, don't guess" / report format (changed files, verification result, unverified items).
+- Brief must include: target file:line and the change / files not to touch / done criteria and verify command / "ask, don't guess" / report format (changed files, verification result, unverified items). Also: "about every 30 minutes of work (or at each major step), end your turn with a short progress report (done / left / blocked); continue when the coordinator says so" — the coordinator only hears from a worker when it ends a turn, relays each check-in to the user, and replies "continue".
 - The coordinator reviews worker diffs and re-runs verification once.
 - Report each worker as soon as it finishes: when a worker's completion note arrives, verify its result (commit/diff, check output) and tell the user right away (what landed, what is unverified, the next step) so they can wrap up whichever finishes first. Never hold results until all workers are done.
 - Criteria are hypotheses: log elapsed time and tokens of delegated bundles in the handoff note and adjust.
