@@ -1,0 +1,16 @@
+{
+  "name": "claude-handoff",
+  "owner": {
+    "name": "lumpen-mya"
+  },
+  "metadata": {
+    "description": "Short-context workflow for Claude Code: structured handoffs at task boundaries."
+  },
+  "plugins": [
+    {
+      "name": "handoff",
+      "source": "./plugins/handoff",
+      "description": "Compact long sessions into structured handoff notes at task boundaries and continue fresh."
+    }
+  ]
+}
