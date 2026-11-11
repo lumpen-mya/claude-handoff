@@ -27,7 +27,10 @@ description: Keep the main session small. The main session only talks with the u
 - A project may define its own agents with the same roles (project rules baked in); use those instead when they exist.
 
 ## Rules for the main session
-1. **Talk only.** Do not read files, run commands or look at diffs. Allowed directly: answering from what is already known, relaying a path, asking the user a question.
+1. **Mostly talk.** Do not read large files, run long commands or review big diffs. Allowed directly: answering from what is already known, relaying a path, asking the user a question.
+   - **Direct-handling threshold**: a short file read or one or two commands whose output must be passed on as-is (about 3K tokens or less) — the main session does it itself.
+   - **Delegation threshold**: anything larger, multi-step, parallel or with big output goes to a subagent. With the same model, delegating a simple read does not shrink the context and only adds call and summary cost.
+   - This threshold (3K) is a hypothesis; adjust after measuring.
 2. **Pass paths, not content.** Give subagents the task folder and brief paths; receive result paths and a few lines.
 3. **Answer concisely.** Conclusion and key points only. Tables and background only when the user asks. Never re-paste what was already shown.
 4. **One task = one title.** Name the task in one line. A request outside it becomes a new task folder (and, when the conversation is long, a new session).
@@ -98,6 +101,6 @@ Metrics: session_tokens.py --json output
 - If the raw history is needed, grep the session transcript (`~/.claude/projects/**/*.jsonl`).
 
 ## Measure
-- Target: the main session's context stays under ~150K for the whole task. Check with `scripts/session_tokens.py`.
+- Target: the main session's context stays under ~300K for the whole task. Check with `scripts/session_tokens.py`.
 - Compare groups of sessions (context, weighted cost per user request, compactions) with `python3 -I scripts/compare_sessions.py out.json`.
-- The thresholds here (150K, 2–3 workers, when to use a worktree) are hypotheses: log what happened in the handoff note and adjust.
+- The thresholds here (300K, 2–3 workers, when to use a worktree) are hypotheses: log what happened in the handoff note and adjust.

@@ -1,6 +1,6 @@
 {
   "name": "handoff",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Keep the main Claude Code session small: it only talks, a lead subagent writes briefs, several workers implement them in separate work areas, and structured handoff notes carry the state across sessions.",
   "author": {
     "name": "lumpen-mya"

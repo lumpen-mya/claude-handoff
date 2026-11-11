@@ -7,7 +7,7 @@
   session_tokens.py <path.jsonl>    # 파일 직접 지정
   --json                            # JSON 한 줄로 출력 (handoff md 기록용)
 
-같은 requestId 는 한 번만 센다. 서브에이전트(isSidechain) 사용량도 합산하고 따로 표시한다.
+같은 requestId 는 한 번만 센다. 서브에이전트(isSidechain·subagents/*.jsonl) 사용량도 합산하고 따로 표시한다.
 """
 import json, sys, glob, os, datetime
 
@@ -34,17 +34,23 @@ def main():
     tot = dict(input=0, cache_write=0, cache_read=0, output=0)
     side = dict(tot)
     turns = 0; peak = 0; models = set(); ts = []
-    for line in open(path, encoding='utf-8'):
+    # 서브에이전트 로그는 <세션id>/subagents/*.jsonl 에 따로 저장된다
+    sub_files = sorted(glob.glob(os.path.join(path[:-6], 'subagents', '*.jsonl')))
+    lines = [(l, False) for l in open(path, encoding='utf-8')]
+    for sf in sub_files:
+        lines += [(l, True) for l in open(sf, encoding='utf-8')]
+    for line, is_sub in lines:
         try:
             o = json.loads(line)
         except ValueError:
             continue
-        if o.get('timestamp'):
+        sub = is_sub or o.get('isSidechain')
+        if o.get('timestamp') and not is_sub:
             ts.append(o['timestamp'])
         m = o.get('message')
         if o.get('type') != 'assistant' or not isinstance(m, dict) or not m.get('usage'):
             continue
-        rid = o.get('requestId') or o.get('uuid')
+        rid = (o.get('requestId') or o.get('uuid'), bool(is_sub))
         if rid in seen:
             continue
         seen.add(rid)
@@ -53,10 +59,10 @@ def main():
                    cache_write=u.get('cache_creation_input_tokens', 0) or 0,
                    cache_read=u.get('cache_read_input_tokens', 0) or 0,
                    output=u.get('output_tokens', 0) or 0)
-        target = side if o.get('isSidechain') else tot
+        target = side if sub else tot
         for k in row:
             target[k] += row[k]
-        if not o.get('isSidechain'):
+        if not sub:
             turns += 1
             peak = max(peak, row['input'] + row['cache_write'] + row['cache_read'])
         if m.get('model'):
@@ -68,7 +74,7 @@ def main():
     all_in = sum(tot[k] for k in ('input', 'cache_write', 'cache_read')) + sum(side[k] for k in ('input', 'cache_write', 'cache_read'))
     out = dict(session=os.path.basename(path)[:-6], minutes=dur, requests=turns,
                peak_context=peak, models=sorted(models),
-               main=tot, subagents=side,
+               main=tot, subagents=side, subagent_files=len(sub_files),
                total_input=all_in, total_output=tot['output'] + side['output'],
                cache_hit=round((tot['cache_read'] + side['cache_read']) / all_in, 3) if all_in else None)
     if as_json:

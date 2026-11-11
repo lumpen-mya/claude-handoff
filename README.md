@@ -2,7 +2,7 @@
 
 **Stop paying for long context.** A Claude Code plugin that keeps the main session for conversation only, pushes all work to subagents (a lead, several workers with separate work areas, a reviewer, a helper), and carries state in markdown notes — handing off to a fresh session at task boundaries. Based on NVIDIA's *"You don't need long context"* (2026) and our own session measurements.
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.2-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
+![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.2.1-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
 
 > In the paper, frequent structured compaction kept Opus accuracy within **−3.7 to +5.6 pp** of baseline while estimated cost fell **2.2–8.8×**; selective reading of long inputs cut estimated cost **6.5–54×**. This skill turns those findings into a daily workflow.
 
@@ -12,7 +12,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 ```
 Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type `/handoff`.
 
-> **Status: experimental (v0.2).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
+> **Status: experimental (v0.2.1).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
 
 ## Evidence
 
@@ -28,7 +28,7 @@ Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type
 
 The numbers above are from the papers; our own measurements are below.
 
-**Not yet evidenced (our hypotheses):** that the main-session-talks setup keeps context under ~150K for a whole task, and the worker limits (2–3 at once, worktree only when files could collide). We are measuring this.
+**Not yet evidenced (our hypotheses):** that the main-session-talks setup keeps context under ~300K for a whole task, and the worker limits (2–3 at once, worktree only when files could collide). We are measuring this.
 
 ## Install
 
@@ -83,7 +83,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 
 ## 한국어
 
-> **지금 실험 중인 v0.2입니다.** 써 보시고 후기를 남겨 주세요. [Issues](https://github.com/lumpen-mya/claude-handoff/issues)에 짧게 적어 주셔도 됩니다.
+> **지금 실험 중인 v0.2.1입니다.** 써 보시고 후기를 남겨 주세요. [Issues](https://github.com/lumpen-mya/claude-handoff/issues)에 짧게 적어 주셔도 됩니다.
 
 **근거 요약**
 - 작업 경계에서 압축하면 긴 작업에서도 정확도가 거의 그대로였습니다. Opus 4.5 기준 기준 대비 −3.7~+5.6pp입니다. (NVIDIA §3)
@@ -91,7 +91,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 - 비용 절감은 대부분 압축이 아니라 필요한 부분만 골라 읽는 데서 나왔습니다. (NVIDIA §4)
 - 너무 자주 압축하면 캐시가 깨져서 오히려 비싸질 수 있습니다. (NVIDIA 부록 C)
 - 반복 작업을 절차나 스크립트로 고정하면 토큰이 79~90% 줄었습니다. (GenericAgent §4.4)
-- **아직 근거가 없는 가설:** 메인이 대화만 하면 작업 내내 150K 아래로 유지된다는 것, 워커 수(동시 2~3개)입니다. 지금 실측하고 있습니다.
+- **아직 근거가 없는 가설:** 메인이 대화만 하면 작업 내내 300K 아래로 유지된다는 것, 워커 수(동시 2~3개)입니다. 지금 실측하고 있습니다.
 
 **후기로 알려 주시면 좋은 것**
 - 새 세션이 다시 탐색하지 않고 바로 이어갔는지
@@ -109,7 +109,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 ```
 또는 Claude에게 "lumpen-mya/claude-handoff 플러그인 설치해줘"라고 말하면 됩니다.
 
-**주요 동작 (v0.2)**
+**주요 동작 (v0.2.1)**
 - **메인은 대화만, 작업은 서브에이전트:** 메인에는 md 경로와 5~10줄 요약만 옵니다.
   - 메인 대화: Sonnet 5.5 (`examples/settings.json`을 프로젝트 `.claude/settings.json`으로 복사)
   - 팀장 `handoff-lead` (맥락 파악·분배·지시서): Fable 5.2
