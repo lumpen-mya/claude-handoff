@@ -25,6 +25,21 @@ The coordinator reads context once and gives workers only a brief. Workers do no
 - Report each worker as soon as it finishes: when a worker's completion note arrives, verify its result (commit/diff, check output) and tell the user right away (what landed, what is unverified, the next step) so they can wrap up whichever finishes first. Never hold results until all workers are done.
 - Criteria are hypotheses: log elapsed time and tokens of delegated bundles in the handoff note and adjust.
 
+## Main session talks, subagents work (measured 2026-11-11)
+Measured: even after a handoff, a session that does the work itself grows again by ~50–80K tokens every 50 calls — almost the same curve as after auto-compaction. Most of it is command output and screenshots.
+- Keep **one main session for conversation only**. It does not read files, run commands or inspect diffs; it delegates and receives short summaries plus markdown paths.
+- Roles (bundled agents in this plugin, models pinned):
+  - Main conversation: Sonnet 5.5 (`claude-sonnet-5-5`, set `"model"` in the project's `.claude/settings.json`; see `examples/settings.json`)
+  - `handoff-lead` — lead: reads context, splits work, writes briefs: Fable 5.2 (`claude-fable-5-2`)
+  - `handoff-worker` — implements one brief, verifies, commits: Opus 5.5 (`claude-opus-5-5`)
+  - `handoff-reviewer` — re-checks diffs and verification: Opus 5.5
+  - `handoff-helper` — chores (git status, builds, lookups, screenshots): Sonnet 5.5
+- Shared state lives in a task folder `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/` (`brief-N-*.md`, `result-N-*.md`, `review.md`, `handoff.md`). Only paths and 5–10 line summaries go back to the main session.
+- Subagents cannot spawn subagents, so the main session relays brief paths from the lead to workers.
+- **Multiple workers, separate work areas.** Launch one `handoff-worker` per brief, in parallel when briefs are independent. Each brief has an `Owned files:` list and the lead makes those lists disjoint; a worker edits and stages only its owned files (`git add <path>`, never `git add -A`). If owned files could still collide (shared lockfiles, generated files, the same repo being rebuilt), launch that worker with `isolation: "worktree"` so it works on its own git worktree and branch; the main session (or the helper) merges those branches afterwards, one at a time.
+- **Answer concisely.** Main session: conclusion and key points only; tables and background only when asked. Subagent returns: 5–10 lines.
+- Check: the main session's context should stay under ~150K for the whole task (`session_tokens.py`).
+
 ## When to hand off
 - At a task boundary only. Not mid-task — compacting too often breaks prompt caching and can raise real cost.
 

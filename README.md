@@ -53,6 +53,19 @@ Or copy `plugins/handoff/skills/handoff/` to `~/.claude/skills/handoff/`.
 
 Use: type `/handoff`, or say "hand this off" / "start a fresh session".
 
+## Main session talks, subagents work (v0.2)
+Measured on our own sessions: a handoff restarts at ~100K, but if that session does the work itself it grows again by ~50–80K every 50 calls. v0.2 keeps one main session for conversation only and pushes all work to bundled subagents:
+
+| Role | Agent | Model |
+|---|---|---|
+| Main conversation | (your session) | Sonnet 5.5 — copy `examples/settings.json` to `.claude/settings.json` |
+| Lead: read context, split, write briefs | `handoff-lead` | Fable 5.2 |
+| Workers (several, in parallel, disjoint `Owned files:`; worktree when files could collide) | `handoff-worker` | Opus 5.5 |
+| Reviewer | `handoff-reviewer` | Opus 5.5 |
+| Chores | `handoff-helper` | Sonnet 5.5 |
+
+Only markdown paths and 5–10 line summaries reach the main session, and every answer stays concise.
+
 ## Feedback
 
 This is a work in progress. Please try it and tell us:
@@ -105,6 +118,13 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
   - 기존 문서와 충돌하는 내용이 있는지 (고치지 않고 권장안만 제안)
   - 확정된 결정을 메모리나 스펙으로 올릴 후보 (확인 후에만 반영)
 - **작업 나누기:** 서로 독립적이고 큰 묶음일 때만 나눕니다. 보통 2~3개, 최대 4개입니다.
+
+**v0.2 — 메인은 대화만, 작업은 서브에이전트**
+- 메인 대화: Sonnet 5.5 (`examples/settings.json`을 프로젝트 `.claude/settings.json`으로 복사)
+- 팀장 `handoff-lead` (파악·분배·지시서): Fable 5.2
+- 작업자 `handoff-worker` (여러 개 병렬, 지시서마다 `Owned files:` 분리, 겹칠 위험이 있으면 worktree): Opus 5.5
+- 검토 `handoff-reviewer`: Opus 5.5 · 잡일 `handoff-helper`: Sonnet 5.5
+- 메인에는 md 경로와 5~10줄 요약만 오고, 모든 답변은 간결하게.
 
 ## License
 MIT
