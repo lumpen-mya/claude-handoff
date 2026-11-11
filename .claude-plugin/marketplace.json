@@ -4,13 +4,13 @@
     "name": "lumpen-mya"
   },
   "metadata": {
-    "description": "Short-context workflow for Claude Code: structured handoffs at task boundaries."
+    "description": "Short-context workflow for Claude Code: the main session talks, subagents work, handoff notes carry the state."
   },
   "plugins": [
     {
       "name": "handoff",
       "source": "./plugins/handoff",
-      "description": "Compact long sessions into structured handoff notes at task boundaries and continue fresh."
+      "description": "Main session for conversation only; lead/worker/reviewer/helper subagents with pinned models; structured handoff notes at task boundaries."
     }
   ]
 }

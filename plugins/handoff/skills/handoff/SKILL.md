@@ -1,69 +1,87 @@
 ---
 name: handoff
-description: Compress a long session into a structured handoff note (markdown) and continue in a fresh session, and split work across sessions only when it pays off. Use when the user says /handoff, "hand this off", "start a fresh session", "compact and continue", "새 세션으로 넘겨", "정리하고 새로 열어", or when a titled piece of work is finished and the conversation has grown long.
+description: Keep the main session small. The main session only talks with the user; a lead subagent reads the context and writes briefs, several workers implement them in separate work areas, and only short summaries plus markdown paths come back. At a task boundary, compress the work into a structured handoff note and continue in a fresh session. Use when the user says /handoff, "hand this off", "start a fresh session", "compact and continue", "새 세션으로 넘겨", "정리하고 새로 열어", when starting a multi-step task in a project that uses this setup, or when a titled piece of work is finished and the conversation has grown long.
 ---
 
-# handoff — compact at task boundaries, continue fresh
+# handoff — the main session talks, subagents work, notes carry the state
 
-Basis: Belcak et al., "You don't need long context" (NVIDIA, arXiv 2611.05306). Compacting at task boundaries into a structured *handoff brief* (not a narrative recap) keeps accuracy close to baseline while cutting context cost. Details and other sources: `reference.md` in this folder (read only when needed).
+## Why
+- Every call re-sends the whole conversation of that session. Whatever the session reads or runs stays in it and is paid for again on every later call.
+- Measured on our own sessions (49 sessions, 2026-09 to 2026-11, `scripts/compare_sessions.py`):
+  - A fresh start from a handoff note begins at ~100K tokens; right after auto-compaction it is ~125K. From there **both grow by 50–80K every 50 calls** if the session does the work itself.
+  - About 80% of that growth was command output, screenshots and lookups; the assistant's own text was ~4%.
+  - Output tokens per call were the same everywhere (~600). Cost differences come from input.
+- So a handoff alone is not enough. The context stays small only if the work happens somewhere else: in subagents, whose reading never enters the main session.
+- Paper basis for the note format and for compacting at task boundaries: Belcak et al., "You don't need long context" (NVIDIA, arXiv 2611.05306). Sources and details: `reference.md` (read only when needed).
 
-## Session scope (one session = one title)
-1. Start: state the scope as a one-line title (rename the session to it if the client allows).
-2. During: if a request falls outside the title, propose a new session instead of doing it here. Exception: tiny questions that take one or two tool calls.
-3. Finish: when the titled work is done → write the handoff note → promote confirmed decisions (see check step) → check → close the session or open the next title in a new one.
+## Roles and models
+| Role | Who | Model | Does |
+|---|---|---|---|
+| Main | the session the user talks to | Sonnet 5.5 (`claude-sonnet-5-5`) | Talks, relays paths, asks questions. No file reads, commands or diffs |
+| Lead | `handoff-lead` | Fable 5.2 (`claude-fable-5-2`) | Reads the context once, splits the work, writes briefs. No code edits |
+| Worker ×N | `handoff-worker` | Opus 5.5 (`claude-opus-5-5`) | Implements one brief in its own work area, verifies, commits |
+| Reviewer | `handoff-reviewer` | Opus 5.5 | Re-checks commits, diffs and verification. No code edits |
+| Helper | `handoff-helper` | Sonnet 5.5 | Chores: git status, builds, lookups, screenshots. No code edits |
 
-## Splitting work (coordinator → worker sessions)
-The coordinator reads context once and gives workers only a brief. Workers do not re-explore.
-- Planning step (default for every task): while reading, split the work into independent bundles; note files, dependencies and expected size for each. Delegate only bundles that meet the criteria below; do the rest directly. Tell the user one line: "split into N (reason)".
-- These records are the experiment: never run the same task twice just to compare.
-- Split only when ALL hold: disjoint file sets / no bundle waits on another's result / each bundle is sizable on its own (hypothesis: 3+ files or ~20+ min).
-- Don't split: 1–2 edit tasks, ordered dependencies (shared core → screens), several bundles touching the same file.
-- If files may overlap, give each worker its own git worktree.
-- Practical ceiling: 2–3 workers, at most 4 — beyond that review becomes the bottleneck.
-- Brief must include: target file:line and the change / files not to touch / done criteria and verify command / "ask, don't guess" / report format (changed files, verification result, unverified items). Also: "about every 30 minutes of work (or at each major step), end your turn with a short progress report (done / left / blocked); continue when the coordinator says so" — the coordinator only hears from a worker when it ends a turn, relays each check-in to the user, and replies "continue".
-- The coordinator reviews worker diffs and re-runs verification once.
-- Report each worker as soon as it finishes: when a worker's completion note arrives, verify its result (commit/diff, check output) and tell the user right away (what landed, what is unverified, the next step) so they can wrap up whichever finishes first. Never hold results until all workers are done.
-- Criteria are hypotheses: log elapsed time and tokens of delegated bundles in the handoff note and adjust.
+- The agents ship with this plugin with their models pinned. Set the main model per project: copy `examples/settings.json` to `<project>/.claude/settings.json`.
+- A project may define its own agents with the same roles (project rules baked in); use those instead when they exist.
 
-## Main session talks, subagents work (measured 2026-11-11)
-Measured: even after a handoff, a session that does the work itself grows again by ~50–80K tokens every 50 calls — almost the same curve as after auto-compaction. Most of it is command output and screenshots.
-- Keep **one main session for conversation only**. It does not read files, run commands or inspect diffs; it delegates and receives short summaries plus markdown paths.
-- Roles (bundled agents in this plugin, models pinned):
-  - Main conversation: Sonnet 5.5 (`claude-sonnet-5-5`, set `"model"` in the project's `.claude/settings.json`; see `examples/settings.json`)
-  - `handoff-lead` — lead: reads context, splits work, writes briefs: Fable 5.2 (`claude-fable-5-2`)
-  - `handoff-worker` — implements one brief, verifies, commits: Opus 5.5 (`claude-opus-5-5`)
-  - `handoff-reviewer` — re-checks diffs and verification: Opus 5.5
-  - `handoff-helper` — chores (git status, builds, lookups, screenshots): Sonnet 5.5
-- Shared state lives in a task folder `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/` (`brief-N-*.md`, `result-N-*.md`, `review.md`, `handoff.md`). Only paths and 5–10 line summaries go back to the main session.
-- Subagents cannot spawn subagents, so the main session relays brief paths from the lead to workers.
-- **Multiple workers, separate work areas.** Launch one `handoff-worker` per brief, in parallel when briefs are independent. Each brief has an `Owned files:` list and the lead makes those lists disjoint; a worker edits and stages only its owned files (`git add <path>`, never `git add -A`). If owned files could still collide (shared lockfiles, generated files, the same repo being rebuilt), launch that worker with `isolation: "worktree"` so it works on its own git worktree and branch; the main session (or the helper) merges those branches afterwards, one at a time.
-- **Answer concisely.** Main session: conclusion and key points only; tables and background only when asked. Subagent returns: 5–10 lines.
-- Check: the main session's context should stay under ~150K for the whole task (`session_tokens.py`).
+## Rules for the main session
+1. **Talk only.** Do not read files, run commands or look at diffs. Allowed directly: answering from what is already known, relaying a path, asking the user a question.
+2. **Pass paths, not content.** Give subagents the task folder and brief paths; receive result paths and a few lines.
+3. **Answer concisely.** Conclusion and key points only. Tables and background only when the user asks. Never re-paste what was already shown.
+4. **One task = one title.** Name the task in one line. A request outside it becomes a new task folder (and, when the conversation is long, a new session).
+5. Subagents cannot start subagents: the main session relays the lead's brief paths to the workers.
 
-## When to hand off
-- At a task boundary only. Not mid-task — compacting too often breaks prompt caching and can raise real cost.
+## Workflow
+1. **Open a task folder**: `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/`. Everything below is written there.
+2. **Lead**: pass the user's request (near-verbatim) and the folder. The lead writes `brief-<N>-<slug>.md` per bundle and returns paths, one-line summaries, which briefs can run in parallel, and questions for the user.
+3. **Questions**: ask the user what the lead could not resolve. Do not let workers guess.
+4. **Workers**: start one worker per brief — in parallel when the lead marked them independent, in order otherwise. Each returns its `result-<N>-<slug>.md` path, commit hashes, pass/fail and unverified items.
+5. **Report as each finishes**: tell the user what landed and what is unverified as soon as a worker returns. Never hold results until all are done.
+6. **Reviewer**: pass the result paths. It writes `review.md` and returns pass or the list of problems. Problems go back to a worker as a new brief.
+7. **Close the task**: write the handoff note (below) into the folder as `handoff.md`. The next task starts from that note only.
 
-## Procedure
-1. Write the handoff note in the format below. It is a brief for the next worker, not a retrospective.
-   - Location: `~/.claude/handoffs/YYYY-MM-DD-<slug>.md`
-   - **Never overwrite or delete an existing file.** If the name exists, append a `## Addendum — HH:MM` section at the end (append, not Write). Record changed facts as "Correction:" in the new section; leave the original text as is.
-   - Same rule for any other markdown you update (CLAUDE.md, specs, memory): add or correct only; delete or rewrite only after the user confirms.
-2. Note uncommitted changes and running processes (dev servers, emulators, ports).
-   - Measure: run `python3 <this skill folder>/scripts/session_tokens.py --json` and paste the result as the "Metrics" line at the end of the note. If work was split, run it for each worker session too.
-3. Open the new session — only after step 4 passes.
-   - Claude desktop app: start a fresh session with the brief "read `<note path>` and continue".
-   - CLI: tell the user to run `claude "read <note path> and continue"`.
-4. Check (before opening the new session):
-   - Preservation: if you appended, the line count did not drop below the pre-write `wc -l`, and the original first line and last section heading are unchanged.
-   - Format: all 7 headings exist (`grep -c`). Fill empty ones with "none".
-   - Facts: commit hashes exist (`git log --oneline -1 <hash>`), paths exist (`ls`), push state matches (`git status -sb`).
-   - Unverified: anything you did not check yourself is marked "unverified".
-   - Conflicts: if an existing note, CLAUDE.md or memory contradicts this skill, do not edit it. List `file:line` with a "recommend changing to the skill's rule" suggestion and apply only after the user confirms.
-   - Promotion: from this note, pick only decisions confirmed by execution or by the user, and propose them as candidates for durable memory (one fact per file, linked) or the project's spec docs. Exclude guesses and in-progress items. Apply only after confirmation; update existing entries by correction, never overwrite.
-   - If anything fails, fix it (by appending) and check again.
-5. Tell the user one line: note path, check result, new session.
+Things the user must see (screenshots, a rendered page) are saved in the task folder by the subagent; the main session only gives the path.
 
-## Handoff note format (based on the paper's App. G.1 prompt)
+## Briefs and results
+`brief-<N>-<slug>.md` (written by the lead):
+```
+Goal: one line
+Owned files: the only files this worker may edit — disjoint from every other brief
+Isolation: none | worktree
+Changes: file:line and what to change
+Do not touch: files or areas
+Done when: criteria + the exact verify command
+Questions: anything unknown — ask, do not guess
+```
+`result-<N>-<slug>.md` (written by the worker): changed files / commit hashes / verify command and its result / unverified items / out-of-scope findings / saved screenshot paths.
+
+## Several workers, separate work areas
+- The lead splits by **file ownership**: every brief lists `Owned files:` and the lists never overlap. Changes that are ordered (shared core → screens) or touch the same file stay in one brief.
+- A worker edits and stages only its owned files (`git add <paths>`, never `git add -A`), and never reverts or reformats files it does not own.
+- `Isolation: worktree` when owned files could still collide — lockfiles, generated files, a shared build output. Start that worker with `isolation: "worktree"`; it commits to its own branch, and afterwards the helper merges the branches one at a time.
+- Practical ceiling: 2–3 workers at once, 4 at most — beyond that review becomes the bottleneck.
+- Do not split 1–2 edit tasks: one brief, one worker.
+
+## Handoff note (at a task boundary)
+Only at a boundary — compacting mid-task breaks prompt caching and can raise real cost.
+
+1. Write the note in the format below. It is a brief for whoever continues, not a retrospective.
+   - Location: `handoff.md` in the task folder, or `~/.claude/handoffs/YYYY-MM-DD-<slug>.md` when there is no task folder.
+   - **Never overwrite or delete an existing note.** If it exists, append `## Addendum — HH:MM`. Record changed facts as "Correction:" and leave the original text.
+   - Same rule for other markdown you update (CLAUDE.md, specs, memory): add or correct only; delete or rewrite only after the user confirms.
+2. Include uncommitted changes and running processes (dev servers, emulators, ports).
+3. Metrics: `python3 <this skill folder>/scripts/session_tokens.py <session id> --json`, pasted as the last line. Subagent usage is summed automatically.
+4. Check before continuing (the helper can run these):
+   - Preservation: after an append, the line count did not drop and the first line is unchanged.
+   - Format: all 7 headings exist; empty ones say "none".
+   - Facts: commit hashes exist (`git log --oneline -1 <hash>`), paths exist, push state matches `git status -sb`.
+   - Unverified: anything not checked by execution is marked "unverified".
+   - Conflicts: if an existing note, CLAUDE.md or memory contradicts this skill, do not edit it — list `file:line` with a suggested change and apply only after the user confirms.
+   - Promotion: propose only decisions confirmed by execution or by the user as candidates for durable memory or the project's spec docs. Apply after confirmation.
+5. Continue: start a fresh session with "read `<note path>` and continue" (desktop app: start a new session with that brief; CLI: `claude "read <note path> and continue"`). Tell the user one line: note path, check result, new session.
+
 ```
 # Handoff — <title> (YYYY-MM-DD)
 1. Objective: the user's request (near-verbatim) + preferences and corrections given during the session
@@ -73,8 +91,13 @@ Measured: even after a handoff, a session that does the work itself grows again 
 5. Dead ends: failed approaches not to repeat
 6. Remaining plan: ordered subgoals, the immediate next command/edit, completion criteria
 7. Environment: running servers, devices, ports, test accounts
-Metrics: session_tokens.py --json output (minutes, requests, input/output tokens, cache hit rate, peak context)
+Metrics: session_tokens.py --json output
 ```
 - For truncated output, give a narrow command to retrieve it instead of the content. Never invent observations.
 - Point to files by path and line instead of copying content.
 - If the raw history is needed, grep the session transcript (`~/.claude/projects/**/*.jsonl`).
+
+## Measure
+- Target: the main session's context stays under ~150K for the whole task. Check with `scripts/session_tokens.py`.
+- Compare groups of sessions (context, weighted cost per user request, compactions) with `python3 -I scripts/compare_sessions.py out.json`.
+- The thresholds here (150K, 2–3 workers, when to use a worktree) are hypotheses: log what happened in the handoff note and adjust.

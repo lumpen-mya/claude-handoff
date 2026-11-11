@@ -1,8 +1,8 @@
 # claude-handoff
 
-**Stop paying for long context.** A Claude Code skill that compacts at task boundaries into a structured handoff note and continues in a fresh session — based on NVIDIA's *"You don't need long context"* (2026).
+**Stop paying for long context.** A Claude Code plugin that keeps the main session for conversation only, pushes all work to subagents (a lead, several workers with separate work areas, a reviewer, a helper), and carries state in markdown notes — handing off to a fresh session at task boundaries. Based on NVIDIA's *"You don't need long context"* (2026) and our own session measurements.
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.1-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
+![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.2-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
 
 > In the paper, frequent structured compaction kept Opus accuracy within **−3.7 to +5.6 pp** of baseline while estimated cost fell **2.2–8.8×**; selective reading of long inputs cut estimated cost **6.5–54×**. This skill turns those findings into a daily workflow.
 
@@ -12,7 +12,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 ```
 Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type `/handoff`.
 
-> **Status: experimental (v0.1).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
+> **Status: experimental (v0.2).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
 
 ## Evidence
 
@@ -26,9 +26,9 @@ Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type
 | Rules-only memory beats full SOP text (66.5% vs 52.4%) | GenericAgent §4.3.2, Table 5 |
 | File-based navigation improves accuracy (+17.3% avg), but is not cheaper than RAG | Coding Agents…, Table 1, Table 5 |
 
-**Not yet measured for this plugin:** the numbers above are from the papers. Per-session token metrics are now logged with `scripts/session_tokens.py` during the test period.
+The numbers above are from the papers; our own measurements are below.
 
-**Not yet evidenced (our hypotheses):** when splitting into parallel sessions pays off (3+ files or ~20+ min per bundle, 2–3 workers). We are measuring this.
+**Not yet evidenced (our hypotheses):** that the main-session-talks setup keeps context under ~150K for a whole task, and the worker limits (2–3 at once, worktree only when files could collide). We are measuring this.
 
 ## Install
 
@@ -45,26 +45,29 @@ Or copy `plugins/handoff/skills/handoff/` to `~/.claude/skills/handoff/`.
 
 ## What it does
 
-- **One session = one title.** Out-of-scope requests get proposed as a new session.
-- **Handoff note** (`~/.claude/handoffs/YYYY-MM-DD-<slug>.md`) in 7 parts: objective, established facts, applied changes, verification, dead ends, remaining plan, environment.
-- **Never overwrites** existing notes — appends and records corrections.
-- **Check step** before continuing: preservation, format, facts (commits/paths/push), unverified marks, conflicts with existing docs (suggested, not applied), and promotion of confirmed decisions to memory/specs (with user confirmation).
-- **Split work** only for independent, sizable bundles (2–3 workers, max 4); the coordinator writes the briefs and reviews the diffs.
-
-Use: type `/handoff`, or say "hand this off" / "start a fresh session".
-
-## Main session talks, subagents work (v0.2)
-Measured on our own sessions: a handoff restarts at ~100K, but if that session does the work itself it grows again by ~50–80K every 50 calls. v0.2 keeps one main session for conversation only and pushes all work to bundled subagents:
+**The main session talks, subagents work.** Only markdown paths and 5–10 line summaries reach the main session.
 
 | Role | Agent | Model |
 |---|---|---|
-| Main conversation | (your session) | Sonnet 5.5 — copy `examples/settings.json` to `.claude/settings.json` |
-| Lead: read context, split, write briefs | `handoff-lead` | Fable 5.2 |
-| Workers (several, in parallel, disjoint `Owned files:`; worktree when files could collide) | `handoff-worker` | Opus 5.5 |
-| Reviewer | `handoff-reviewer` | Opus 5.5 |
-| Chores | `handoff-helper` | Sonnet 5.5 |
+| Main conversation | your session | Sonnet 5.5 — copy `examples/settings.json` to `<project>/.claude/settings.json` |
+| Lead: reads context, splits work, writes briefs | `handoff-lead` | Fable 5.2 |
+| Workers: several in parallel, each with its own `Owned files:` (git worktree when files could collide) | `handoff-worker` | Opus 5.5 |
+| Reviewer: re-checks commits, diffs, verification | `handoff-reviewer` | Opus 5.5 |
+| Helper: git status, builds, lookups, screenshots | `handoff-helper` | Sonnet 5.5 |
 
-Only markdown paths and 5–10 line summaries reach the main session, and every answer stays concise.
+- **Task folder** `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/` holds `brief-N-*.md`, `result-N-*.md`, `review.md`, `handoff.md`.
+- **Concise answers**: conclusion and key points only; subagents return 5–10 lines.
+- **Handoff note** at a task boundary, in 7 parts: objective, established facts, applied changes, verification, dead ends, remaining plan, environment. Never overwrites existing notes — appends and records corrections.
+- **Check step** before continuing: preservation, format, facts (commits/paths/push), unverified marks, conflicts with existing docs (suggested, not applied), promotion of confirmed decisions (with user confirmation).
+
+Use: type `/handoff`, or say "hand this off" / "start a fresh session".
+
+## Our measurements (49 sessions, not a controlled study)
+- A fresh start from a handoff note begins at ~100K tokens, right after auto-compaction ~125K — then **both grow 50–80K every 50 calls** when the session does the work itself. A handoff alone does not keep context small.
+- ~80% of the growth was command output, screenshots and lookups; assistant text ~4%.
+- Output tokens per call were flat (~600) regardless of session length; cost differences come from input.
+- Sessions started from a brief or handoff cost about half per user request compared with long sessions (weighted tokens), with zero auto-compactions — small sample, selection bias likely.
+- Reproduce on your own history: `python3 -I plugins/handoff/skills/handoff/scripts/compare_sessions.py out.json`.
 
 ## Feedback
 
@@ -80,7 +83,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 
 ## 한국어
 
-> **지금 실험 중인 v0.1입니다.** 써 보시고 후기를 남겨 주세요. [Issues](https://github.com/lumpen-mya/claude-handoff/issues)에 짧게 적어 주셔도 됩니다.
+> **지금 실험 중인 v0.2입니다.** 써 보시고 후기를 남겨 주세요. [Issues](https://github.com/lumpen-mya/claude-handoff/issues)에 짧게 적어 주셔도 됩니다.
 
 **근거 요약**
 - 작업 경계에서 압축하면 긴 작업에서도 정확도가 거의 그대로였습니다. Opus 4.5 기준 기준 대비 −3.7~+5.6pp입니다. (NVIDIA §3)
@@ -88,7 +91,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 - 비용 절감은 대부분 압축이 아니라 필요한 부분만 골라 읽는 데서 나왔습니다. (NVIDIA §4)
 - 너무 자주 압축하면 캐시가 깨져서 오히려 비싸질 수 있습니다. (NVIDIA 부록 C)
 - 반복 작업을 절차나 스크립트로 고정하면 토큰이 79~90% 줄었습니다. (GenericAgent §4.4)
-- **아직 근거가 없는 가설:** 세션을 나누는 기준(묶음당 파일 3개 이상 또는 20분 이상, 작업 세션 2~3개)입니다. 지금 실측하고 있습니다.
+- **아직 근거가 없는 가설:** 메인이 대화만 하면 작업 내내 150K 아래로 유지된다는 것, 워커 수(동시 2~3개)입니다. 지금 실측하고 있습니다.
 
 **후기로 알려 주시면 좋은 것**
 - 새 세션이 다시 탐색하지 않고 바로 이어갔는지
@@ -96,7 +99,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 - 세션을 나눠서 이득이었던 경우와 손해였던 경우
 - 고장 난 부분이나 어색한 규칙
 
-**짧은 컨텍스트로 일하기 위한** Claude Code 스킬입니다. 작업이 끝나는 시점에 구조화된 인수인계 노트로 압축하고, 새 세션에서 이어갑니다. 세션을 여러 개로 나누는 건 그쪽이 이득일 때만 합니다.
+**짧은 컨텍스트로 일하기 위한** Claude Code 플러그인입니다. 메인 세션은 대화만 하고 작업은 서브에이전트가 맡으며, 작업이 끝나는 시점에 구조화된 인수인계 노트로 압축해 새 세션에서 이어갑니다.
 
 근거는 NVIDIA 논문 ["You don't need long context"](https://arxiv.org/abs/2611.05306)입니다. 작업 경계에서 인수인계 형식으로 압축하면 정확도는 거의 그대로이고 비용은 줄어듭니다.
 
@@ -106,25 +109,21 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 ```
 또는 Claude에게 "lumpen-mya/claude-handoff 플러그인 설치해줘"라고 말하면 됩니다.
 
-**주요 동작**
-- **한 세션에 한 타이틀:** 세션 범위를 타이틀 하나로 정합니다. 범위 밖 요청은 새 세션으로 나누자고 제안합니다.
-- **인수인계 노트 7항목:** 목표, 확인된 사실, 적용한 변경, 검증, 막다른 길, 남은 계획, 환경을 적습니다.
-- **기존 파일은 덮어쓰지 않음:** 덧붙이기와 정정만 합니다.
-- **새 세션을 열기 전 점검:**
-  - 기존 내용이 그대로 남아 있는지
-  - 형식이 맞는지
-  - 커밋·경로가 실제로 있는지
-  - 확인 못 한 내용에 '미확인' 표시가 있는지
-  - 기존 문서와 충돌하는 내용이 있는지 (고치지 않고 권장안만 제안)
-  - 확정된 결정을 메모리나 스펙으로 올릴 후보 (확인 후에만 반영)
-- **작업 나누기:** 서로 독립적이고 큰 묶음일 때만 나눕니다. 보통 2~3개, 최대 4개입니다.
+**주요 동작 (v0.2)**
+- **메인은 대화만, 작업은 서브에이전트:** 메인에는 md 경로와 5~10줄 요약만 옵니다.
+  - 메인 대화: Sonnet 5.5 (`examples/settings.json`을 프로젝트 `.claude/settings.json`으로 복사)
+  - 팀장 `handoff-lead` (맥락 파악·분배·지시서): Fable 5.2
+  - 워커 `handoff-worker` (여러 개 병렬, 지시서마다 담당 파일 분리, 겹칠 위험이 있으면 worktree): Opus 5.5
+  - 검토 `handoff-reviewer`: Opus 5.5 · 잡일 `handoff-helper`: Sonnet 5.5
+- **작업 폴더:** `~/.claude/handoffs/tasks/날짜-작업명/`에 지시서·결과·검토·인수인계 md를 둡니다.
+- **답변은 간결하게:** 결론과 핵심만 답합니다.
+- **인수인계 노트 7항목:** 목표, 확인된 사실, 적용한 변경, 검증, 막다른 길, 남은 계획, 환경. 기존 파일은 덮어쓰지 않고 덧붙이기와 정정만 합니다.
+- **이어가기 전 점검:** 기존 내용 보존, 형식, 커밋·경로 사실 확인, '미확인' 표시, 기존 문서와의 충돌(권장안만 제안), 확정된 결정의 메모리·스펙 승격 후보(확인 후 반영).
 
-**v0.2 — 메인은 대화만, 작업은 서브에이전트**
-- 메인 대화: Sonnet 5.5 (`examples/settings.json`을 프로젝트 `.claude/settings.json`으로 복사)
-- 팀장 `handoff-lead` (파악·분배·지시서): Fable 5.2
-- 작업자 `handoff-worker` (여러 개 병렬, 지시서마다 `Owned files:` 분리, 겹칠 위험이 있으면 worktree): Opus 5.5
-- 검토 `handoff-reviewer`: Opus 5.5 · 잡일 `handoff-helper`: Sonnet 5.5
-- 메인에는 md 경로와 5~10줄 요약만 오고, 모든 답변은 간결하게.
+**직접 잰 수치 (49세션)**
+- 핸드오프로 새로 시작하면 약 100K, 자동 압축 직후는 약 125K입니다. 그 뒤 세션이 직접 작업하면 둘 다 50호출마다 50~80K씩 커집니다.
+- 커진 양의 약 80%는 명령 출력·스크린샷·조회 결과였습니다.
+- 출력 토큰은 호출당 약 600으로 세션 길이와 무관했습니다.
 
 ## License
 MIT

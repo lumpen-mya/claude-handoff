@@ -38,6 +38,15 @@ Prompt caching discounts input only; output tokens get no cache discount and are
 
 Observation from our own sessions (test period, not a controlled study): 97–99% of input tokens were cache reads, so input volume is driven by context size — sessions whose context peaked at 600–750k tokens accumulated 190M–550M input tokens, versus 5M–13M for sessions that stayed under ~175k.
 
+## Our measurements (49 sessions, 2026-09 to 2026-11; not a controlled study)
+Script: `scripts/compare_sessions.py`. Weighted cost = input 1, cache read 0.1, cache write 1.25, output 5.
+- Average context per call in the first 50 calls: started from a handoff note or brief 78–119K (6 sessions) vs right after auto-compaction 99–177K (26 segments). After that both grow 50–80K per 50 calls.
+- One session after a handoff, per 100 calls: 144 → 219 → 159 → 264 → 329 → 382 → 443 → 545 → 625K. The handoff's advantage was gone within ~300 calls.
+- What accumulated before the first compaction: command output 41%, screenshots ~25%, lookups ~26%, assistant text 4%.
+- Output tokens per call: 592 (fresh start), 631 (after compaction), 613 (late in long sessions) — no difference.
+- Weighted cost per user request: started from brief/handoff 141K (7 sessions, 0 compactions) vs long sessions 296K (12 sessions, 29 compactions). Selection bias: the first group had narrower tasks.
+- Conclusion used by the skill: cutting the session is what saves; to keep it small, do the work in subagents so their reading never enters the main session.
+
 ## Weak evidence (do not treat as rules)
 - "<30k tokens is the hallucination-free limit" — no experiment (GenericAgent §2.1.4).
 - "Fewer tokens = better performance" — authors call it an observation, not a controlled result (GenericAgent §5).

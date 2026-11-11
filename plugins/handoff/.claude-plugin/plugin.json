@@ -1,8 +1,18 @@
 {
   "name": "handoff",
   "version": "0.2.0",
-  "description": "Compact long Claude Code sessions into structured handoff notes at task boundaries, continue in a fresh session, and split work across sessions only when it pays off.",
-  "author": { "name": "lumpen-mya" },
+  "description": "Keep the main Claude Code session small: it only talks, a lead subagent writes briefs, several workers implement them in separate work areas, and structured handoff notes carry the state across sessions.",
+  "author": {
+    "name": "lumpen-mya"
+  },
   "license": "MIT",
-  "keywords": ["context", "compaction", "handoff", "tokens", "sessions"]
+  "keywords": [
+    "compaction",
+    "context",
+    "handoff",
+    "orchestration",
+    "sessions",
+    "subagents",
+    "tokens"
+  ]
 }

@@ -1,12 +1,25 @@
+#!/usr/bin/env python3
+"""Compare all Claude Code sessions on this machine (test-period measurement).
+
+Usage:
+  python3 -I compare_sessions.py out.json     # writes one row per session, prints a group summary
+
+Per session: API calls, active minutes, peak and average context, input/output tokens,
+weighted cost (input 1, cache read 0.1, cache write 1.25, output 5), auto-compactions,
+user messages, and a rough count of user corrections (short messages matching CORR).
+Sessions are grouped by how they started (from a handoff note / a brief / plain) and by size.
+Subagent logs (<session>/subagents/*.jsonl) are summed into the session's cost.
+"""
 import json,glob,os,re,datetime,sys
 base=os.path.expanduser('~/.claude/projects')
-CORR=re.compile(r'(아니|ㄴㄴ|왜 ?안|왜케|다시 ?(해|확인)|잘못|안 ?되|안 ?돼|씨발|틀렸|뭔소리|이상해)')
+# rough correction markers (Korean + English); adjust for your language
+CORR=re.compile(r'(아니|ㄴㄴ|왜 ?안|다시 ?(해|확인)|잘못|안 ?되|안 ?돼|틀렸|뭔소리|이상해|\bno[,. ]|\bwrong\b|\bagain\b|not what)',re.I)
 def ts(s):
     try: return datetime.datetime.fromisoformat(s.replace('Z','+00:00'))
     except: return None
 rows=[]
 for f in glob.glob(base+'/*/*.jsonl'):
-    seen=set(); req=0; ctxs=[]; w=0.0; inp=0; out=0; comp=0; users=0; corr=0; times=[]; first=None; kind='일반'
+    seen=set(); req=0; ctxs=[]; w=0.0; inp=0; out=0; comp=0; users=0; corr=0; times=[]; first=None; kind='plain'
     sub=glob.glob(f[:-6]+'/subagents/*.jsonl')
     for path,is_sub in [(f,False)]+[(s,True) for s in sub]:
       for l in open(path,encoding='utf-8',errors='ignore'):
@@ -24,8 +37,8 @@ for f in glob.glob(base+'/*/*.jsonl'):
             if not clean: continue
             if first is None:
                 first=clean
-                if re.search(r'handoffs/[\w-]+\.md',clean): kind='핸드오프md'
-                elif clean.startswith('Background (from the session') or 'session that started this one' in clean: kind='브리프'
+                if re.search(r'handoffs/[\w-]+\.md',clean): kind='handoff'
+                elif clean.startswith('Background (from the session') or 'session that started this one' in clean: kind='brief'
             users+=1
             if len(clean)<300 and CORR.search(clean): corr+=1
         if d.get('type')=='assistant':
@@ -39,4 +52,15 @@ for f in glob.glob(base+'/*/*.jsonl'):
     times.sort(); active=sum(min((b-a).total_seconds(),600) for a,b in zip(times,times[1:]))/60
     rows.append(dict(id=os.path.basename(f)[:8],proj=os.path.basename(os.path.dirname(f)).replace('-home-ksw------eum','eum'),start=times[0].strftime('%m-%d') if times else '',kind=kind,req=req,active=round(active),peak=max(ctxs) if ctxs else 0,avgctx=round(sum(ctxs)/len(ctxs)) if ctxs else 0,inp=inp,out=out,w=round(w),comp=comp,users=users,corr=corr))
 json.dump(rows,open(sys.argv[1],'w'),ensure_ascii=False)
-print(len(rows))
+def group(x):
+    if x['kind'] in ('brief','handoff') and x['req']<400: return 'A started from brief/handoff'
+    if x['req']>=400: return 'C long (400+ calls)'
+    if x['req']>=100: return 'B medium (100-399 calls)'
+    return 'D short plain (<100 calls)'
+G={}
+for x in rows:
+    if x['users']: G.setdefault(group(x),[]).append(x)
+print('group | sessions | user msgs | avg context | weighted cost per user msg | output per call | compactions | corrections')
+for k in sorted(G):
+    L=G[k]; S=lambda f:sum(x[f] for x in L)
+    print(f"{k} | {len(L)} | {S('users')} | {round(sum(x['avgctx']*x['req'] for x in L)/S('req')/1000)}K | {S('w')//S('users')//1000}K | {S('out')//S('req')} | {S('comp')} | {round(S('corr')*100/S('users'),1)}%")
