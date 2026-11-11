@@ -50,7 +50,7 @@ for f in glob.glob(base+'/*/*.jsonl'):
             inp+=i+cr+cw; out+=o; w+=i+cr*0.1+cw*1.25+o*5
     if req<3: continue
     times.sort(); active=sum(min((b-a).total_seconds(),600) for a,b in zip(times,times[1:]))/60
-    rows.append(dict(id=os.path.basename(f)[:8],proj=os.path.basename(os.path.dirname(f)).replace('-home-ksw------eum','eum'),start=times[0].strftime('%m-%d') if times else '',kind=kind,req=req,active=round(active),peak=max(ctxs) if ctxs else 0,avgctx=round(sum(ctxs)/len(ctxs)) if ctxs else 0,inp=inp,out=out,w=round(w),comp=comp,users=users,corr=corr))
+    rows.append(dict(id=os.path.basename(f)[:8],proj=os.path.basename(os.path.dirname(f)),start=times[0].strftime('%m-%d') if times else '',kind=kind,req=req,active=round(active),peak=max(ctxs) if ctxs else 0,avgctx=round(sum(ctxs)/len(ctxs)) if ctxs else 0,inp=inp,out=out,w=round(w),comp=comp,users=users,corr=corr))
 json.dump(rows,open(sys.argv[1],'w'),ensure_ascii=False)
 def group(x):
     if x['kind'] in ('brief','handoff') and x['req']<400: return 'A started from brief/handoff'
