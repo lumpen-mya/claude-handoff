@@ -81,6 +81,7 @@ Use: type `/handoff`, or say "hand this off" / "start a fresh session".
 - **Subagent first turn** (one session, 28 subagents, 2026-11-12, read from logs): ~10.8K input tokens for the one agent with a `tools:` allowlist (n=1) vs ~55K for agents with every tool. Two delegated jobs of 3–4 tool calls cost ~64K new input each.
 - Counting new input only, delegation cost more in every case we logged; the gain is the reading that never enters the main session's cache.
 - A break-even analysis measured on another project (delegation paying off after roughly 21 / 8 / 6 tool calls at 100K / 200K / 300K of main context) uses different assumptions and **did not reproduce on our logs**; we do not rely on those numbers.
+- **v0.3.1 A/B** (same read-only task, old vs new agent definitions, headless CLI, 1–2 runs each per cell, hv030 vs hv031 only): first-turn input worker 22K → 7K, lead 22K → 8K, helper 23K → 7K; answers identical (4/4), no escalations. *Confirmed* in this setup: lower first-turn input and same answers. *Estimated*: the benefit in real sessions, since headless first-turn values are lower than the app's (~55K) and absolute numbers differ by environment. *Unconfirmed*: the runner old/new comparison (n=1; no old-runner baseline in the rerun, and in the first test Haiku added options to a command on its own). Direction check, not statistics.
 
 ## Feedback
 
@@ -151,6 +152,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 - **서브에이전트 첫 턴 (한 세션·28개, 2026-11-12, 로그 기준):** `tools:` 허용 목록이 있는 에이전트는 약 10.8K(표본 1), 모든 도구를 가진 에이전트는 약 55K였습니다. 도구 3~4회짜리 위임 2건은 신규 입력이 각각 약 64K였습니다.
 - 신규 입력만 보면 위임은 기록된 모든 경우에 더 비쌌습니다. 이득은 메인 세션 캐시에 쌓이지 않는 읽기에서 나옵니다.
 - 다른 프로젝트에서 잰 손익분기(메인 100K·200K·300K에서 약 21·8·6회부터 위임이 이득)는 계산 가정이 달라 **우리 로그로는 재현되지 않았습니다.** 이 수치에는 기대지 않습니다.
+- **v0.3.1 구/신 비교** (같은 읽기 전용 과제, 헤드리스 CLI, 칸마다 1~2회, hv030 대 hv031 비교뿐): 첫 턴 입력이 워커 22K → 7K, 팀장 22K → 8K, 잡일 23K → 7K였고 답은 같았으며(4/4) 승급은 없었습니다. **확인됨**: 이 환경에서 첫 턴 입력 감소와 같은 답. **추정**: 실제 세션에서의 이득(헤드리스 첫 턴 값은 앱(~55K)보다 낮고 절대값은 환경마다 다름). **미확정**: runner 구/신 비교(n=1, 재시험에는 구 runner 기준값 없음, 첫 시험에서 Haiku가 명령에 옵션을 임의로 붙인 사례 있음). 통계가 아니라 방향 확인용입니다.
 
 ## License
 MIT
