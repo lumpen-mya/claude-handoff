@@ -104,9 +104,16 @@ Large results (logs, diffs, canvases, earlier notes): never paste or read them w
 - The lead splits by **file ownership**: every brief lists `Owned files:` and the lists never overlap. Changes that are ordered (shared core → screens) or touch the same file stay in one brief.
 - A worker edits and stages only its owned files (`git add <paths>`, never `git add -A`), and never reverts or reformats files it does not own.
 - `Isolation: worktree` when owned files could still collide — lockfiles, generated files, a shared build output. Start that worker with `isolation: "worktree"`; it commits to its own branch, and afterwards the helper merges the branches one at a time.
-- Practical ceiling: 2–3 workers at once, 4 at most — beyond that review becomes the bottleneck.
+- When owned files do not overlap, run 2–3 workers at once (4 at most — beyond that review becomes the bottleneck).
 - Do not split 1–2 edit tasks: one brief, one worker.
 - Each worker runs only its brief's narrow Verify (`node --check`, its own unit tests, one screenshot of its screen). The full build and full test run happen once, in the verify step after merging.
+
+## Assigned worker (per project) — hypothesis, effect not measured yet
+- Work that continues in the same project goes to the same `handoff-worker`: the main session keeps its agent id and sends the next brief path with SendMessage instead of starting a new worker, so what it already read is reused.
+- Parallel briefs and unrelated work get one-off workers (a new `handoff-worker` each). One assigned worker per project at most; it owns files like any other worker.
+- **Replace at about 150K**: when the assigned worker's context nears ~150K tokens (the usage shown with its hand-back; if none is shown, after 4 continued briefs), ask it for a takeover note, then start a new assigned worker from that note plus the next brief. Replace it at a session handoff too.
+- Takeover note `takeover-<N>.md` in the task folder (written by the worker, 40 lines or less): `Done:` what was done, with commit hashes / `Next:` what to do next, starting with the immediate command or edit / `Blocked:` what is stuck, or "none" / `Pointers:` up to 10 `file:line` places worth re-opening. It is the one extra file a new assigned worker reads besides its brief.
+- Basis (one session, n=1): a lead continued twice by SendMessage started its turns at 55K → 112K → 117K input, of which 103K and 112K were cache reads. Not measured: whether that beats a new allowlisted worker (~11K first turn) that re-reads what it needs; a continuation after the prompt cache has expired pays the whole context again as new input. See Measure.
 
 ## Tiers — who runs a brief
 The lead sets `Model:` on every brief. **When unsure, go one tier up.**
@@ -165,7 +172,7 @@ Metrics: session_tokens.py --json output
 ## Measure
 - Target: the main session's context stays under ~300K for the whole task. Check with `scripts/session_tokens.py`.
 - Compare groups of sessions (context, weighted cost per user request, compactions) with `python3 -I scripts/compare_sessions.py out.json`.
-- The thresholds here (300K, 3 tool calls / 6,000 characters, 2–3 workers, when to use a worktree, the 6,000-character brief, the 3-line hand-back, the tier table) are hypotheses: log what happened in the handoff note and adjust.
+- The thresholds here (300K, 3 tool calls / 6,000 characters, 2–3 workers, when to use a worktree, the 6,000-character brief, the 3-line hand-back, the tier table, the single-track route and its 3,000-character one-page brief, the assigned worker and its ~150K replacement point, the reviewer only before high-risk merges) are hypotheses: log what happened in the handoff note and adjust.
 - **Comparing rule versions** (e.g. v0.2 vs v0.3, or runner used vs not used): run the same small fixed task — 2 wording swaps + 1 logic fix (2 files) + a merge + a full test run — from the same commit, each in a new worktree and new session with the same request text; at least 2 tasks × 2 runs each (one run is mostly noise). Collect with `scripts/session_tokens.py --json`:
   - main session peak context and request count
   - per-model subagent requests, input (incl. cache reads) and output
@@ -175,4 +182,5 @@ Metrics: session_tokens.py --json output
   - number of full build/test runs
   - problems the reviewer found (duplicates, unowned follow-ups, trailer), rework briefs
   - wall time (active minutes), user corrections
+- **Assigned worker vs new worker** (v0.3.2, not measured yet): take 2–3 jobs that continue one another in one project and run them from the same commit with the same briefs — once with one assigned worker continued by SendMessage, once with a new worker per job. Compare per job and in total: first-turn input (new + cache write + cache read), total input (also weighted: new 1, cache write 1.25, cache read 0.1), request and tool-call counts, accuracy (each job's Verify passes; reported numbers match a re-run). Keep the assigned worker only if weighted input drops 10% or more with equal accuracy; otherwise use new workers and say so in the README.
 - Adopt a change only if weighted cost (model price × tokens) and rework both go down. If cost drops but rework rises, loosen the "read only the brief" rule and the tier table first. If a runner ever reports "pass" for a run that actually failed, move test runs back to helper.
