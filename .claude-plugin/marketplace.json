@@ -10,7 +10,7 @@
     {
       "name": "handoff",
       "source": "./plugins/handoff",
-      "description": "Main session for conversation only; lead/worker/reviewer/helper subagents with pinned models; structured handoff notes at task boundaries."
+      "description": "Main session for conversation only; lead/worker/reviewer/helper/runner subagents with pinned models; structured handoff notes at task boundaries."
     }
   ]
 }

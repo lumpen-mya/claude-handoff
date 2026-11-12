@@ -18,10 +18,11 @@ description: Keep the main session small. The main session only talks with the u
 | Role | Who | Model | Does |
 |---|---|---|---|
 | Main | the session the user talks to | Sonnet 5.5 (`claude-sonnet-5-5`) | Talks, relays paths, asks questions. No file reads, commands or diffs |
-| Lead | `handoff-lead` | Fable 5.2 (`claude-fable-5-2`) | Reads the context once, splits the work, writes briefs. No code edits |
-| Worker ×N | `handoff-worker` | Opus 5.5 (`claude-opus-5-5`) | Implements one brief in its own work area, verifies, commits |
-| Reviewer | `handoff-reviewer` | Opus 5.5 | Re-checks commits, diffs and verification. No code edits |
-| Helper | `handoff-helper` | Sonnet 5.5 | Chores: git status, builds, lookups, screenshots. No code edits |
+| Lead | `handoff-lead` | Fable 5.2 (`claude-fable-5-2`) | Reads the context once, splits the work, writes self-contained briefs and `plan.md`, sets each brief's tier, runs the plan check. No code edits |
+| Worker ×N | `handoff-worker` | Opus 5.5 (`claude-opus-5-5`) | Tier `worker`: everything that needs judgment — implementation, logic, root cause, design. Reads only its brief, verifies narrowly, commits |
+| Reviewer | `handoff-reviewer` | Opus 5.5 | Re-checks commits, diffs and the verify log. No code edits |
+| Helper | `handoff-helper` | Sonnet 5.5 | Tier `helper`: chores that need a little thought — summarising/comparing results, checking screenshots, wording swaps inside the range a brief names, simple tidy-ups, finding cause candidates in logs, merging non-overlapping branches. No other edits |
+| Runner | `handoff-runner` | Haiku 5.5 (`claude-haiku-5-5`) | Tier `runner`: runs only the commands written in its brief (git status/log, tests and builds → pass/fail counts, file existence/line counts, copying named files) and returns the numbers. No judgment, interpretation, summaries or code edits |
 
 - The agents ship with this plugin with their models pinned. Set the main model per project: copy `examples/settings.json` to `<project>/.claude/settings.json`.
 - A project may define its own agents with the same roles (project rules baked in); use those instead when they exist.
@@ -31,34 +32,52 @@ description: Keep the main session small. The main session only talks with the u
    - **Direct-handling threshold**: a short file read or one or two commands whose output must be passed on as-is (about 3K tokens or less) — the main session does it itself.
    - **Delegation threshold**: anything larger, multi-step, parallel or with big output goes to a subagent. With the same model, delegating a simple read does not shrink the context and only adds call and summary cost.
    - This threshold (3K) is a hypothesis; adjust after measuring.
-2. **Pass paths, not content.** Give subagents the task folder and brief paths; receive result paths and a few lines.
-3. **Answer concisely.** Conclusion and key points only. Tables and background only when the user asks. Never re-paste what was already shown.
-4. **One task = one title.** Name the task in one line. A request outside it becomes a new task folder (and, when the conversation is long, a new session).
-5. Subagents cannot start subagents: the main session relays the lead's brief paths to the workers.
+2. **Never write briefs yourself.** Anything that edits files — including follow-up requests — goes to the lead as "the user's request (near-verbatim) + task folder". If the same lead is still available, continue it instead of starting a new one.
+   - Exception: a read-only chore whose command is already fixed (runner tier: status, a log line, a test run with a known command) may go straight to `handoff-runner` with an instruction of 3 lines or less — no brief, no file edits.
+3. **Pass paths, not content.** Give subagents the task folder and brief paths; receive result paths and a few lines.
+4. **Answer concisely.** Conclusion and key points only. Tables and background only when the user asks. Never re-paste what was already shown.
+5. **One task = one title.** Name the task in one line. A request outside it becomes a new task folder (and, when the conversation is long, a new session).
+6. Subagents cannot start subagents: the main session relays the lead's brief paths to the agent named by each brief's `Model:` tier.
 
 ## Workflow
 1. **Open a task folder**: `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/`. Everything below is written there.
-2. **Lead**: pass the user's request (near-verbatim) and the folder. The lead writes `brief-<N>-<slug>.md` per bundle and returns paths, one-line summaries, which briefs can run in parallel, and questions for the user.
+2. **Lead**: pass the user's request (near-verbatim) and the folder. The lead writes `plan.md` (brief list, owned-files table, tiers, the verify step, items with no owner, the plan check) and one self-contained `brief-<N>-<slug>.md` per bundle, then returns paths, one-line summaries, which briefs can run in parallel, and questions for the user. On a follow-up request the lead reads only `plan.md` and appends briefs.
 3. **Questions**: ask the user what the lead could not resolve. Do not let workers guess.
-4. **Workers**: start one worker per brief — in parallel when the lead marked them independent, in order otherwise. Each returns its `result-<N>-<slug>.md` path, commit hashes, pass/fail and unverified items.
-5. **Report as each finishes**: tell the user what landed and what is unverified as soon as a worker returns. Never hold results until all are done.
-6. **Reviewer**: pass the result paths. It writes `review.md` and returns pass or the list of problems. Problems go back to a worker as a new brief.
-7. **Close the task**: write the handoff note (below) into the folder as `handoff.md`. The next task starts from that note only.
+4. **Run each brief at its tier**: `Model: runner` → `handoff-runner`, `helper` → `handoff-helper`, `worker` → `handoff-worker` — in parallel when the lead marked them independent, in order otherwise. Each returns its result path + 3 lines (one more line only if something is blocked).
+   - **Escalation**: if a brief comes back with "Blocked:" (outside its conditions, or failed), it changed nothing; run the same brief one tier up (runner → helper → worker). If a worker is blocked, it goes back to the lead. Escalations are counted in the result note.
+5. **Report as each finishes**: tell the user what landed and what is unverified as soon as an agent returns. Never hold results until all are done.
+6. **Verify once**: after merging, one `brief-verify` runs the full build and full test suite once — runner when the commands and expected counts are fixed, helper when the failure log must be read for cause candidates. Fixes become new worker briefs from the lead.
+7. **Reviewer**: pass the result paths and the verify log. It writes `review.md` and returns pass or the list of problems. Problems go back to the lead for a new brief.
+8. **Close the task**: write the handoff note (below) into the folder as `handoff.md`. The next task starts from that note only.
 
 Things the user must see (screenshots, a rendered page) are saved in the task folder by the subagent; the main session only gives the path.
 
 ## Briefs and results
-`brief-<N>-<slug>.md` (written by the lead):
+`brief-<N>-<slug>.md` (written by the lead) must be **self-contained**: the agent reads this one file and nothing else in the task folder. No "read <other note> first"; shared rules are not split into a separate file — the lines that apply are excerpted into each brief. Target: 6KB or less (split the brief or trim Context if larger). Exploratory work (audits, investigations) that cannot be excerpted states a "search scope" in Context instead.
 ```
+# brief-<N>-<slug>
 Goal: one line
-Owned files: the only files this worker may edit — disjoint from every other brief
-Isolation: none | worktree
-Changes: file:line and what to change
+Model: runner | helper | worker — one-line reason (which row of the tier table)
+Context: only the facts this job needs, 15 lines or less. Sources as (file:line) — a citation, not an instruction to open it.
+  - findings/decisions quoted as one original line
+  - only the project rules that apply here (commit style, forbidden commands, tone)
+  - base HEAD hash, files other sessions are using
+Owned files: the only files this agent edits — disjoint from every other brief
+Isolation: none | worktree (+ branch, port, persist path)
+Changes: file:line — what it is now → what it becomes. Wording exactly as it should read.
 Do not touch: files or areas
-Done when: criteria + the exact verify command
-Questions: anything unknown — ask, do not guess
+Verify: a narrow check for this brief only + expected result. Full build/test: "done by the verify step in plan.md".
+  (runner briefs: the exact commands and the expected output/counts)
+Commit: message style. Last line: "the Co-Authored-By line the system assigns to the running model" — never a model name.
+Questions: anything unknown. If any, the agent does not start and returns it.
 ```
-`result-<N>-<slug>.md` (written by the worker): changed files / commit hashes / verify command and its result / unverified items / out-of-scope findings / saved screenshot paths.
+`result-<N>-<slug>.md` (written by the agent) starts with this fixed block — the main session and later agents read only this block:
+```
+Done: (3 lines max — include commit hashes)
+Next: (3 lines max — hand-offs, unverified items)
+Blocked: (or "none")
+```
+A `## Details` section below is optional (verify numbers, out-of-scope findings, log and screenshot paths, escalation count).
 
 ## Several workers, separate work areas
 - The lead splits by **file ownership**: every brief lists `Owned files:` and the lists never overlap. Changes that are ordered (shared core → screens) or touch the same file stay in one brief.
@@ -66,6 +85,28 @@ Questions: anything unknown — ask, do not guess
 - `Isolation: worktree` when owned files could still collide — lockfiles, generated files, a shared build output. Start that worker with `isolation: "worktree"`; it commits to its own branch, and afterwards the helper merges the branches one at a time.
 - Practical ceiling: 2–3 workers at once, 4 at most — beyond that review becomes the bottleneck.
 - Do not split 1–2 edit tasks: one brief, one worker.
+- Each worker runs only its brief's narrow Verify (`node --check`, its own unit tests, one screenshot of its screen). The full build and full test run happen once, in the verify step after merging.
+
+## Tiers — who runs a brief
+The lead sets `Model:` on every brief. **When unsure, go one tier up.**
+
+| Tier | Agent (model) | Takes | Never |
+|---|---|---|---|
+| runner | `handoff-runner` (Haiku 5.5) | **Fixed commands only**: the command is written verbatim in the brief and the result is checkable by numbers/output — git status·log, running tests/builds and reporting pass/fail counts, file existence and line counts, copying named files | judgment, interpretation, summaries, code edits |
+| helper | `handoff-helper` (Sonnet 5.5) | **Chores that need a little thought**: summarising/comparing results, checking screenshots against wording in the brief, wording swaps and simple tidy-ups inside the range the brief names, finding cause candidates in logs, merging branches already confirmed not to overlap (stop on conflict) | edits outside the named range, logic changes, settling a root cause, design |
+| worker | `handoff-worker` (Opus 5.5) | **Everything else**: implementation, fixes, root-cause analysis, design decisions; security, permissions and data migrations regardless of size | — |
+
+- Outside its conditions or on failure, an agent changes nothing, writes it under "Blocked:" and returns; the main session reruns the same brief one tier up (runner → helper → worker → lead).
+
+## Plan check (lead, before returning briefs)
+At the end of `plan.md`, mark each item "checked" or "n/a":
+1. **No owned-file overlap**: the `Owned files` of all briefs are disjoint, and do not touch files other sessions have uncommitted.
+2. **No duplicate work**: every request/finding item maps to exactly one brief (item → brief table).
+3. **No unowned follow-ups**: a change that requires a change elsewhere (a server that now returns 400 → the screen's message) has an owner. If none fits, add a brief or list it under "ask the user".
+4. **Full tests once**: the full build/test is gathered into one verify step after merging; each brief's Verify covers only its own files.
+5. **Commit trailer**: no brief hard-codes a model name (the system-assigned trailer of the running model is used).
+6. **Tiers**: every brief has `Model:` and a reason; nothing that fits a lower tier was left higher; every runner brief has the exact commands and expected output (numbers).
+7. **Self-contained**: no "read first"; each brief can be started from itself alone.
 
 ## Handoff note (at a task boundary)
 Only at a boundary — compacting mid-task breaks prompt caching and can raise real cost.
@@ -103,4 +144,14 @@ Metrics: session_tokens.py --json output
 ## Measure
 - Target: the main session's context stays under ~300K for the whole task. Check with `scripts/session_tokens.py`.
 - Compare groups of sessions (context, weighted cost per user request, compactions) with `python3 -I scripts/compare_sessions.py out.json`.
-- The thresholds here (300K, 2–3 workers, when to use a worktree) are hypotheses: log what happened in the handoff note and adjust.
+- The thresholds here (300K, 2–3 workers, when to use a worktree, the 6KB brief, the 3-line hand-back, the tier table) are hypotheses: log what happened in the handoff note and adjust.
+- **Comparing rule versions** (e.g. v0.2 vs v0.3, or runner used vs not used): run the same small fixed task — 2 wording swaps + 1 logic fix (2 files) + a merge + a full test run — from the same commit, each in a new worktree and new session with the same request text; at least 2 tasks × 2 runs each (one run is mostly noise). Collect with `scripts/session_tokens.py --json`:
+  - main session peak context and request count
+  - per-model subagent requests, input (incl. cache reads) and output
+  - tokens a worker read before its first edit
+  - runner : helper : worker call ratio, escalations (runner → helper, helper → worker)
+  - wrong results (reported count ≠ re-run count)
+  - number of full build/test runs
+  - problems the reviewer found (duplicates, unowned follow-ups, trailer), rework briefs
+  - wall time (active minutes), user corrections
+- Adopt a change only if weighted cost (model price × tokens) and rework both go down. If cost drops but rework rises, loosen the "read only the brief" rule and the tier table first. If a runner ever reports "pass" for a run that actually failed, move test runs back to helper.
