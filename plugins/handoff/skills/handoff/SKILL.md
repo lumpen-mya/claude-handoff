@@ -18,10 +18,10 @@ description: Keep the main session small. The main session only talks with the u
 ## Roles and models
 | Role | Who | Model | Does |
 |---|---|---|---|
-| Main | the session the user talks to | Sonnet 5.5 (`claude-sonnet-5-5`) | Talks, relays paths, asks questions. No file reads, commands or diffs |
+| Main | the session the user talks to | Sonnet 5.5 (`claude-sonnet-5-5`) | Talks, relays paths, asks questions; does jobs inside the direct-handling threshold; writes the one-page brief on the single-track route. No large file reads, long commands or big diffs |
 | Lead | `handoff-lead` | Fable 5.2 (`claude-fable-5-2`) | Reads the context once, splits the work, writes self-contained briefs and `plan.md`, sets each brief's tier, runs the plan check. No code edits |
 | Worker ×N | `handoff-worker` | Opus 5.5 (`claude-opus-5-5`) | Tier `worker`: everything that needs judgment — implementation, logic, root cause, design. Reads only its brief, verifies narrowly, commits |
-| Reviewer | `handoff-reviewer` | Opus 5.5 | Re-checks commits, diffs and the verify log. No code edits |
+| Reviewer | `handoff-reviewer` | Opus 5.5 | Only before a high-risk merge or push: re-checks commits, diffs and the verify log. No code edits |
 | Helper | `handoff-helper` | Sonnet 5.5 | Tier `helper`: chores that need a little thought — summarising/comparing results, checking screenshots, wording swaps inside the range a brief names, simple tidy-ups, finding cause candidates in logs, merging non-overlapping branches. No other edits |
 | Runner | `handoff-runner` | Haiku 5.5 (`claude-haiku-5-5`) | Tier `runner`: fixed commands that repeat — the same verbatim command set run several times or over several targets (more than 3 tool calls in total, or long output sent to a file), checkable by numbers/output (git status/log, tests and builds → pass/fail counts, file existence/line counts, copying named files) and returns the numbers. No judgment, interpretation, summaries or code edits |
 
@@ -30,32 +30,38 @@ description: Keep the main session small. The main session only talks with the u
 - A project may define its own agents with the same roles (project rules baked in); use those instead when they exist.
 
 ## Rules for the main session
-1. **Mostly talk.** Do not read large files, run long commands or review big diffs. Allowed directly: answering from what is already known, relaying a path, asking the user a question.
+1. **Mostly talk.** Do not read large files, run long commands or review big diffs. Allowed directly: answering from what is already known, relaying a path, asking the user a question, a job inside the direct-handling threshold, and writing the one-page brief on the single-track route (rule 2).
    - **Direct-handling threshold**: a job expected to take 3 tool calls or fewer and return about 6,000 characters or less (a short file read, one to three commands whose output is passed on as-is) — the main session does it itself; no subagent of any tier.
    - **Delegation threshold**: anything larger, multi-step, parallel or with big output goes to a subagent. Every subagent start pays a fixed first turn (observed, n=1 sample, direction only: ~11K input tokens with a `tools:` allowlist, ~55K without), so small delegations lose: two delegated jobs of 3–4 tool calls cost ~64K new input each.
    - If a direct job grows (a 4th call is needed, or output passes 6,000 characters), stop and delegate the rest. These thresholds (3 calls, 6,000 characters) are hypotheses; adjust after measuring.
-2. **Never write briefs yourself.** Anything that edits files — including follow-up requests — goes to the lead as "the user's request (near-verbatim) + task folder". If the same lead is still available, continue it instead of starting a new one.
-   - Exception: read-only fixed commands that repeat — the same verbatim command set run several times or over several targets (more than 3 tool calls in total, or long output sent to a file), checkable by numbers/output — may go straight to `handoff-runner` with an instruction of 3 lines or less (no brief, no file edits). A one-off fixed command inside the direct-handling threshold is run by the main session itself.
-3. **Pass paths, not content.** Give subagents the task folder and brief paths; receive result paths and a few lines.
+2. **Pick the route by job size; the lead writes briefs, with one exception.** (v0.3.2 — hypothesis, effect not measured yet)
+   - **Direct**: inside the direct-handling threshold (rule 1) — the main session does it.
+   - **Single-track**: one track of small-to-medium work — one agent can do it in order, nothing to run in parallel — goes straight to one `handoff-worker` (`handoff-helper` only for a wording swap inside a named range) with a one-page brief written by the main session. No lead, no `plan.md`.
+   - **Lead**: the work splits into 2 or more parallel tracks, or the one-page brief cannot be filled — pass "the user's request (near-verbatim) + task folder" to the lead. If the same lead is still available, continue it instead of starting a new one.
+   - **Runner, direct**: read-only fixed commands that repeat — the same verbatim command set run several times or over several targets (more than 3 tool calls in total, or long output sent to a file), checkable by numbers/output — may go straight to `handoff-runner` with an instruction of 3 lines or less (no brief, no file edits).
+   - **The one exception to "main never writes briefs" (v0.3)** is the single-track route, and only while all three hold: (a) one track; (b) every required item of the one-page brief can be filled from the user's words and earlier hand-backs, without reading files or running commands beyond the direct-handling threshold; (c) it fits 3,000 characters. If any fails, or the worker returns "Blocked:" for missing facts, the job goes to the lead. The main session never writes `plan.md`, never splits work into several briefs, and never rewrites a brief that came back blocked.
+3. **Pass paths, not content.** Give subagents the task folder and brief paths; receive result paths and a few lines. Relay a lead's or worker's report to the user as the path + 3 lines at most — never re-paste or re-summarise the note. If the same completion notice arrives again (same agent, same result path, nothing new), do not answer it.
 4. **Answer concisely.** Conclusion and key points only. Tables and background only when the user asks. Never re-paste what was already shown.
 5. **One task = one title.** Name the task in one line. A request outside it becomes a new task folder (and, when the conversation is long, a new session).
-6. Subagents cannot start subagents: the main session relays the lead's brief paths to the agent named by each brief's `Model:` tier.
+6. Subagents cannot start subagents: the main session relays brief paths (the lead's, or its own one-page brief on the single-track route) to the agent named by each brief's `Model:` tier.
 
 ## Workflow
 1. **Open a task folder**: `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/`. Everything below is written there.
-2. **Lead**: pass the user's request (near-verbatim) and the folder. The lead writes `plan.md` (brief list, owned-files table, tiers, the verify step, items with no owner, the plan check) and one self-contained `brief-<N>-<slug>.md` per bundle, then returns paths, one-line summaries, which briefs can run in parallel, and questions for the user. On a follow-up request the lead reads only `plan.md` and appends briefs.
+2. **Lead** (lead route only): pass the user's request (near-verbatim) and the folder. The lead writes `plan.md` (brief list, owned-files table, tiers, the verify step, items with no owner, the plan check) and one self-contained `brief-<N>-<slug>.md` per bundle, then returns paths, one-line summaries, which briefs can run in parallel, and questions for the user. On a follow-up request the lead reads only `plan.md` and appends briefs.
+   - **Single-track route**: the main session writes `brief-<N>-<slug>.md` itself from the one-page checklist (Briefs and results) and passes its path to the project's assigned worker. No `plan.md`.
 3. **Questions**: ask the user what the lead could not resolve. Do not let workers guess.
 4. **Run each brief at its tier**: `Model: runner` → `handoff-runner`, `helper` → `handoff-helper`, `worker` → `handoff-worker` — in parallel when the lead marked them independent, in order otherwise. Each returns its result path + 3 lines (one more line only if something is blocked).
    - **Escalation**: if a brief comes back with "Blocked:" (outside its conditions, or failed), it changed nothing; run the same brief one tier up (runner → helper → worker). If a worker is blocked, it goes back to the lead. Escalations are counted in the result note.
-5. **Report as each finishes**: tell the user what landed and what is unverified as soon as an agent returns. Never hold results until all are done.
-6. **Verify once**: after merging, one `brief-verify` runs the full build and full test suite once — runner when the commands and expected counts are fixed, helper when the failure log must be read for cause candidates. Fixes become new worker briefs from the lead.
-7. **Reviewer**: pass the result paths and the verify log. It writes `review.md` and returns pass or the list of problems. Problems go back to the lead for a new brief.
+   - **Which worker**: work that continues in the same project goes to the assigned worker by SendMessage; parallel or unrelated briefs go to one-off workers (see Assigned worker).
+5. **Report as each finishes**: tell the user what landed and what is unverified as soon as an agent returns. Never hold results until all are done. Once per completion, as the path + 3 lines; a repeated notice gets no answer.
+6. **Verify once**: after merging, one `brief-verify` runs the full build and full test suite once — runner when the commands and expected counts are fixed, helper when the failure log must be read for cause candidates. Fixes become new worker briefs from the lead. On the single-track route there is no merge: the one brief's Verify names the full build/test and it runs once, at the end.
+7. **Reviewer** (only before a high-risk merge or push — merging 2 or more worker branches, pushing or deploying to a shared or production branch, or changes to security, permissions, payments or data migrations; otherwise the verify step is the check): pass the result paths and the verify log. It writes `review.md` and returns pass or the list of problems. Problems go back to the lead for a new brief.
 8. **Close the task**: write the handoff note (below) into the folder as `handoff.md`. The next task starts from that note only.
 
 Things the user must see (screenshots, a rendered page) are saved in the task folder by the subagent; the main session only gives the path.
 
 ## Briefs and results
-`brief-<N>-<slug>.md` (written by the lead) must be **self-contained**: the agent reads this one file and nothing else in the task folder. No "read <other note> first"; shared rules are not split into a separate file — the lines that apply are excerpted into each brief. Limit: 6,000 characters (characters, not bytes) for a brief and for any Agent prompt; split or trim Context if larger. Exploratory work (audits, investigations) that cannot be excerpted states a "search scope" in Context instead.
+`brief-<N>-<slug>.md` (written by the lead; by the main session only on the single-track route) must be **self-contained**: the agent reads this one file and nothing else in the task folder. No "read <other note> first"; shared rules are not split into a separate file — the lines that apply are excerpted into each brief. Limit: 6,000 characters (characters, not bytes) for a brief and for any Agent prompt; split or trim Context if larger. Exploratory work (audits, investigations) that cannot be excerpted states a "search scope" in Context instead.
 ```
 # brief-<N>-<slug>
 Goal: one line
@@ -68,11 +74,22 @@ Owned files: the only files this agent edits — disjoint from every other brief
 Isolation: none | worktree (+ branch, port, persist path)
 Changes: file:line — what it is now → what it becomes. Wording exactly as it should read.
 Do not touch: files or areas
-Verify: a narrow check for this brief only + expected result. Full build/test: "done by the verify step in plan.md".
+Verify: a narrow check for this brief only + expected result. Full build/test: "done by the verify step in plan.md" (single-track route: the full build/test command itself, run once at the end).
   (runner briefs: the exact commands and the expected output/counts)
 Commit: message style. Last line: "the Co-Authored-By line the system assigns to the running model" — never a model name.
 Questions: anything unknown. If any, the agent does not start and returns it.
 ```
+**One-page brief (single-track route, written by the main session)** — same file name and headings, 3,000 characters or less. Every item is filled, or the job goes to the lead:
+- [ ] Goal — one line
+- [ ] Model — `worker`; `helper` only for a wording swap inside a named range
+- [ ] Context — the user's request near-verbatim, facts from earlier hand-backs, the project rules that apply, and a search scope (folders or files to look in) where exact lines are not known
+- [ ] Owned files — files or one folder; nothing another running agent owns
+- [ ] Changes — the outcome wanted, in the user's terms; the worker locates the lines
+- [ ] Do not touch
+- [ ] Verify — the narrow check, plus the full build/test command if known (else "per the project's CLAUDE.md"); it runs once, at the end
+- [ ] Commit — style; trailer = the line the system assigns
+- [ ] Questions — "none"; otherwise ask the user before starting the worker
+- [ ] Result note path
 `result-<N>-<slug>.md` (written by the agent) starts with this fixed block — the main session and later agents read only this block:
 ```
 Done: (3 lines max — include commit hashes)
