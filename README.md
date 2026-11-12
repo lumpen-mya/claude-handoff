@@ -62,7 +62,7 @@ Or copy `plugins/handoff/skills/handoff/` to `~/.claude/skills/handoff/`.
 - **Self-contained briefs** (v0.3): an agent reads its one brief and nothing else in the task folder — no "read X first"; the needed facts are excerpted (limit: 6,000 characters).
 - **3-line hand-back** (v0.3): result notes start with `Done:` / `Next:` (3 lines each) / `Blocked:`; agents return the path + 3 lines.
 - **Plan check** (v0.3): before returning briefs the lead checks owned-file overlap, duplicate work, unowned follow-up changes, one full test run after merging, no model names in commit trailers, tiers, and self-containment.
-- **Tool allowlists** (v0.3.1): every agent has a `tools:` line (Read, Bash, Glob, Grep; Edit/Write only where the role needs them; no MCP or browser tools). In our logs this is the difference between a ~11K and a ~55K first turn.
+- **Tool allowlists** (v0.3.1): every agent has a `tools:` line (Read, Bash, Glob, Grep; Edit/Write only where the role needs them; no MCP or browser tools). In our logs this was roughly the difference between a ~11K and a ~55K first turn (n=1 sample, direction only).
 - **Small jobs stay in main** (v0.3.1): a job expected to take 3 tool calls or fewer and return about 6,000 characters or less is done by the main session itself — every delegation pays a fixed first turn. The runner is for fixed commands that repeat.
 - **Big results by excerpt** (v0.3.1): briefs and Agent prompts stay within 6,000 characters; logs, diffs and canvases are written to a file and only the needed lines are quoted.
 - **Concise answers**: conclusion and key points only.
@@ -136,7 +136,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 - **자기완결 지시서 (v0.3):** 받은 지시서 하나만 읽고 끝낼 수 있게 필요한 사실을 발췌해 넣습니다. "다른 노트 먼저 읽기"는 쓰지 않습니다(6,000자 이내).
 - **돌려주기는 3줄 (v0.3):** 결과 노트 맨 위에 `Done:`·`Next:`(각 3줄 이내)·`Blocked:`를 두고, 메인에는 경로+3줄만 돌려줍니다.
 - **팀장 점검 (v0.3):** 지시서를 넘기기 전에 담당 파일 겹침, 같은 일 중복, 아무도 안 맡은 따름 변경, 병합 뒤 전체 시험 1회, 커밋 끝줄의 모델 이름, 등급, 자기완결 여부를 확인해 `plan.md`에 적습니다.
-- **도구 허용 목록 (v0.3.1):** 모든 에이전트에 `tools:` 줄을 둡니다(Read·Bash·Glob·Grep, 역할에 필요할 때만 Edit·Write, MCP·브라우저 도구 없음). 우리 로그에서 첫 턴이 약 55K에서 약 11K로 달라지는 지점입니다.
+- **도구 허용 목록 (v0.3.1):** 모든 에이전트에 `tools:` 줄을 둡니다(Read·Bash·Glob·Grep, 역할에 필요할 때만 Edit·Write, MCP·브라우저 도구 없음). 우리 로그에서는 첫 턴이 약 55K에서 약 11K로 달라졌습니다(표본 1, 방향 확인용).
 - **작은 일은 메인이 직접 (v0.3.1):** 도구 호출 3회 이하·출력 6,000자 이하로 예상되는 일은 맡기지 않고 메인이 합니다. 맡길 때마다 첫 턴 고정 비용이 들기 때문입니다. 실행 담당은 정해진 명령을 반복하는 일에만 씁니다.
 - **큰 결과는 필요한 부분만 (v0.3.1):** 지시서와 Agent 프롬프트는 6,000자 이내로 쓰고, 로그·diff·캔버스는 파일로 보낸 뒤 필요한 줄만 인용합니다.
 - **작업 폴더:** `~/.claude/handoffs/tasks/날짜-작업명/`에 지시서·결과·검토·인수인계 md를 둡니다.
