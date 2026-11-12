@@ -2,7 +2,7 @@
 
 **Stop paying for long context.** A Claude Code plugin that keeps the main session for conversation only, pushes all work to subagents (a lead, several workers with separate work areas, a reviewer, a helper, a runner), and carries state in markdown notes — handing off to a fresh session at task boundaries. Based on NVIDIA's *"You don't need long context"* (2026) and our own session measurements.
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.3.1-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
+![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-experimental%20v0.3.2-orange) ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-8A2BE2)
 
 > In the paper, frequent structured compaction kept Opus accuracy within **−3.7 to +5.6 pp** of baseline while estimated cost fell **2.2–8.8×**; selective reading of long inputs cut estimated cost **6.5–54×**. This skill turns those findings into a daily workflow.
 
@@ -12,7 +12,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 ```
 Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type `/handoff`.
 
-> **Status: experimental (v0.3.1).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
+> **Status: experimental (v0.3.2).** Thresholds are hypotheses being measured in real work — please try it and leave feedback ([Feedback](#feedback)).
 
 ## Evidence
 
@@ -28,7 +28,7 @@ Or just tell Claude: *"install the lumpen-mya/claude-handoff plugin"*. Then type
 
 The numbers above are from the papers; our own measurements are below.
 
-**Not yet evidenced (our hypotheses):** that the main-session-talks setup keeps context under ~300K for a whole task, and the worker limits (2–3 at once, worktree only when files could collide). We are measuring this.
+**Not yet evidenced (our hypotheses):** that the main-session-talks setup keeps context under ~300K for a whole task, and the worker limits (2–3 at once, worktree only when files could collide). Also unmeasured in v0.3.2: routing by job size, the assigned worker, and the reviewer only before high-risk merges. We are measuring this.
 
 ## Install
 
@@ -52,12 +52,12 @@ Or copy `plugins/handoff/skills/handoff/` to `~/.claude/skills/handoff/`.
 | Main conversation | your session | Sonnet 5.5 — copy `examples/settings.json` to `<project>/.claude/settings.json` |
 | Lead: reads context, splits work, writes briefs | `handoff-lead` | Fable 5.2 |
 | Workers: several in parallel, each with its own `Owned files:` (git worktree when files could collide) | `handoff-worker` | Opus 5.5 |
-| Reviewer: re-checks commits, diffs, verification | `handoff-reviewer` | Opus 5.5 |
+| Reviewer: only before a high-risk merge or push — re-checks commits, diffs, verification | `handoff-reviewer` | Opus 5.5 |
 | Helper: chores that need a little thought — summaries, screenshot checks, wording swaps inside a named range, merges | `handoff-helper` | Sonnet 5.5 |
 | Runner: fixed commands only — git status/log, test runs → pass/fail counts, file checks; no judgment or edits | `handoff-runner` | Haiku 5.5 |
 
 - **Task folder** `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/` holds `plan.md`, `brief-N-*.md`, `result-N-*.md`, `review.md`, `handoff.md`.
-- **Main never writes briefs** (v0.3): every file-editing request, follow-ups included, goes to the lead. Only fixed commands that repeat (runner tier) may go straight from main to `handoff-runner`.
+- **Routes by job size** (v0.3.2, effect not measured): 3 tool calls or fewer → the main session does it; one track of small-to-medium work → straight to one worker with a one-page brief the main session writes from a checklist (no lead); 2 or more parallel tracks → the lead writes the briefs. The lead still writes every other brief: main writes one only when the job is a single track, every checklist item can be filled from what it already knows, and it fits 3,000 characters — otherwise, or if the worker comes back blocked, the job goes to the lead.
 - **Three tiers** (v0.3): the lead sets `Model: runner | helper | worker` on each brief — runner (Haiku) for fixed commands checked by numbers, helper (Sonnet) for chores that need a little thought, worker (Opus) for everything else. When unsure, one tier up; on failure the same brief reruns one tier up.
 - **Self-contained briefs** (v0.3): an agent reads its one brief and nothing else in the task folder — no "read X first"; the needed facts are excerpted (limit: 6,000 characters).
 - **3-line hand-back** (v0.3): result notes start with `Done:` / `Next:` (3 lines each) / `Blocked:`; agents return the path + 3 lines.
@@ -65,6 +65,9 @@ Or copy `plugins/handoff/skills/handoff/` to `~/.claude/skills/handoff/`.
 - **Tool allowlists** (v0.3.1): every agent has a `tools:` line (Read, Bash, Glob, Grep; Edit/Write only where the role needs them; no MCP or browser tools). In our logs this was roughly the difference between a ~11K and a ~55K first turn (n=1 sample, direction only).
 - **Small jobs stay in main** (v0.3.1): a job expected to take 3 tool calls or fewer and return about 6,000 characters or less is done by the main session itself — every delegation pays a fixed first turn. The runner is for fixed commands that repeat.
 - **Big results by excerpt** (v0.3.1): briefs and Agent prompts stay within 6,000 characters; logs, diffs and canvases are written to a file and only the needed lines are quoted.
+- **Assigned worker** (v0.3.2, effect not measured): work that continues in one project goes to the same worker by SendMessage; parallel or unrelated work gets one-off workers. Near ~150K of context the worker writes a takeover note (done / next / blocked) and a new assigned worker starts from it.
+- **Short relay** (v0.3.2): the main session passes a lead's or worker's report on as the path + 3 lines, and does not answer a completion notice that merely repeats.
+- **Reviewer and tests** (v0.3.2): the reviewer runs only before a high-risk merge or push (2 or more branches, a shared or production branch, security, permissions, payments, data migrations). The full test runs once after merging; 2–3 workers run in parallel when their owned files do not overlap.
 - **Concise answers**: conclusion and key points only.
 - **Handoff note** at a task boundary, in 7 parts: objective, established facts, applied changes, verification, dead ends, remaining plan, environment. Never overwrites existing notes — appends and records corrections.
 - **Check step** before continuing: preservation, format, facts (commits/paths/push), unverified marks, conflicts with existing docs (suggested, not applied), promotion of confirmed decisions (with user confirmation).
@@ -82,6 +85,7 @@ Use: type `/handoff`, or say "hand this off" / "start a fresh session".
 - Counting new input only, delegation cost more in every case we logged; the gain is the reading that never enters the main session's cache.
 - A break-even analysis measured on another project (delegation paying off after roughly 21 / 8 / 6 tool calls at 100K / 200K / 300K of main context) uses different assumptions and **did not reproduce on our logs**; we do not rely on those numbers.
 - **v0.3.1 A/B** (same read-only task, old vs new agent definitions, headless CLI, 1–2 runs each per cell, hv030 vs hv031 only): first-turn input worker 22K → 7K, lead 22K → 8K, helper 23K → 7K; answers identical (4/4), no escalations. *Confirmed* in this setup: lower first-turn input and same answers. *Estimated*: the benefit in real sessions, since headless first-turn values are lower than the app's (~55K) and absolute numbers differ by environment. *Unconfirmed*: the runner old/new comparison (n=1; no old-runner baseline in the rerun, and in the first test Haiku added options to a command on its own). Direction check, not statistics.
+- **v0.3.2 is an estimate, not measured.** Basis so far: in one session a lead continued twice by SendMessage began its turns at 55K → 112K → 117K input (103K and 112K of it cache reads), while a new allowlisted agent starts at ~11K — so the assigned worker pays off only if it saves more re-reading than its larger cached context costs, and a continuation after the cache expires pays that context again as new input. Planned check: 2–3 jobs that continue one another, run once with an assigned worker and once with a new worker per job, comparing first-turn input, total input (weighted), call counts and accuracy — see "Measure" in `SKILL.md`.
 
 ## Feedback
 
@@ -97,7 +101,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 
 ## 한국어
 
-> **지금 실험 중인 v0.3.1입니다.** 써 보시고 후기를 남겨 주세요. [Issues](https://github.com/lumpen-mya/claude-handoff/issues)에 짧게 적어 주셔도 됩니다.
+> **지금 실험 중인 v0.3.2입니다.** 써 보시고 후기를 남겨 주세요. [Issues](https://github.com/lumpen-mya/claude-handoff/issues)에 짧게 적어 주셔도 됩니다.
 
 **근거 요약**
 - 작업 경계에서 압축하면 긴 작업에서도 정확도가 거의 그대로였습니다. Opus 4.5 기준 기준 대비 −3.7~+5.6pp입니다. (NVIDIA §3)
@@ -105,7 +109,7 @@ Open an [issue](https://github.com/lumpen-mya/claude-handoff/issues) (reviews an
 - 비용 절감은 대부분 압축이 아니라 필요한 부분만 골라 읽는 데서 나왔습니다. (NVIDIA §4)
 - 너무 자주 압축하면 캐시가 깨져서 오히려 비싸질 수 있습니다. (NVIDIA 부록 C)
 - 반복 작업을 절차나 스크립트로 고정하면 토큰이 79~90% 줄었습니다. (GenericAgent §4.4)
-- **아직 근거가 없는 가설:** 메인이 대화만 하면 작업 내내 300K 아래로 유지된다는 것, 워커 수(동시 2~3개)입니다. 지금 실측하고 있습니다.
+- **아직 근거가 없는 가설:** 메인이 대화만 하면 작업 내내 300K 아래로 유지된다는 것, 워커 수(동시 2~3개)입니다. v0.3.2의 일 크기별 경로·담당 워커·위험할 때만 검토도 아직 재지 않았습니다. 지금 실측하고 있습니다.
 
 **후기로 알려 주시면 좋은 것**
 - 새 세션이 다시 탐색하지 않고 바로 이어갔는지
@@ -123,15 +127,15 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 ```
 또는 Claude에게 "lumpen-mya/claude-handoff 플러그인 설치해줘"라고 말하면 됩니다.
 
-**주요 동작 (v0.3.1)**
+**주요 동작 (v0.3.2)**
 - **메인은 대화만, 작업은 서브에이전트:** 메인에는 md 경로와 짧은 요약만 옵니다(워커·잡일·실행 담당은 경로+3줄, 팀장은 10줄 이내).
   - 메인 대화: Sonnet 5.5 (`examples/settings.json`을 프로젝트 `.claude/settings.json`으로 복사)
   - 팀장 `handoff-lead` (맥락 파악·분배·지시서): Fable 5.2
   - 워커 `handoff-worker` (여러 개 병렬, 지시서마다 담당 파일 분리, 겹칠 위험이 있으면 worktree): Opus 5.5
-  - 검토 `handoff-reviewer`: Opus 5.5
+  - 검토 `handoff-reviewer` (위험이 큰 병합·푸시 전에만): Opus 5.5
   - 잡일 `handoff-helper` (요약·비교, 캡처 확인, 지정 범위의 문구 교체·간단한 정리, 병합): Sonnet 5.5
   - 실행 담당 `handoff-runner` (정해진 명령만 실행하고 숫자만 보고, 판단·수정 안 함): Haiku 5.5
-- **메인은 지시서를 직접 쓰지 않습니다 (v0.3):** 파일을 고치는 일은 추가 요청까지 전부 팀장에게 넘깁니다. 정해진 명령을 반복하는 일만 메인이 실행 담당에게 바로 맡깁니다.
+- **일 크기별 경로 (v0.3.2, 효과 미측정):** 도구 호출 3회 이하는 메인이 직접 합니다. 한 갈래의 작은~중간 일은 팀장 없이 워커 하나에게 바로 맡기고, 이때만 메인이 점검표를 따라 한 장짜리 지시서를 씁니다. 일이 2개 이상 병렬 갈래로 나뉘면 팀장이 지시서를 씁니다. 메인이 쓰는 조건은 셋입니다: 한 갈래일 것, 이미 아는 내용만으로 점검표를 다 채울 수 있을 것, 3,000자 이내일 것. 하나라도 안 되거나 워커가 막혀 돌아오면 팀장에게 넘깁니다.
 - **등급 3단 (v0.3):** 팀장이 지시서마다 `Model: runner | helper | worker`를 정합니다. 애매하면 한 단계 위, 실패하면 같은 지시서를 한 단계 위로 다시 돌립니다.
 - **자기완결 지시서 (v0.3):** 받은 지시서 하나만 읽고 끝낼 수 있게 필요한 사실을 발췌해 넣습니다. "다른 노트 먼저 읽기"는 쓰지 않습니다(6,000자 이내).
 - **돌려주기는 3줄 (v0.3):** 결과 노트 맨 위에 `Done:`·`Next:`(각 3줄 이내)·`Blocked:`를 두고, 메인에는 경로+3줄만 돌려줍니다.
@@ -139,6 +143,9 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 - **도구 허용 목록 (v0.3.1):** 모든 에이전트에 `tools:` 줄을 둡니다(Read·Bash·Glob·Grep, 역할에 필요할 때만 Edit·Write, MCP·브라우저 도구 없음). 우리 로그에서는 첫 턴이 약 55K에서 약 11K로 달라졌습니다(표본 1, 방향 확인용).
 - **작은 일은 메인이 직접 (v0.3.1):** 도구 호출 3회 이하·출력 6,000자 이하로 예상되는 일은 맡기지 않고 메인이 합니다. 맡길 때마다 첫 턴 고정 비용이 들기 때문입니다. 실행 담당은 정해진 명령을 반복하는 일에만 씁니다.
 - **큰 결과는 필요한 부분만 (v0.3.1):** 지시서와 Agent 프롬프트는 6,000자 이내로 쓰고, 로그·diff·캔버스는 파일로 보낸 뒤 필요한 줄만 인용합니다.
+- **담당 워커 (v0.3.2, 효과 미측정):** 한 프로젝트에서 이어지는 일은 같은 워커에게 SendMessage로 계속 맡기고, 병렬이거나 무관한 일은 일회용 워커에게 맡깁니다. 컨텍스트가 약 150K에 가까워지면 인수 노트(한 일·다음 할 일·막힌 것)를 쓰게 하고 새 담당으로 바꿉니다.
+- **짧은 중계 (v0.3.2):** 메인은 팀장·워커 보고를 경로+3줄로만 전하고, 같은 완료 알림이 되풀이되면 답하지 않습니다.
+- **검토와 시험 (v0.3.2):** 검토는 위험이 큰 병합·푸시 전에만 합니다(브랜치 2개 이상 병합, 공유·운영 브랜치, 보안·권한·결제·데이터 이전). 전체 시험은 병합 뒤 한 번, 담당 파일이 안 겹치면 워커 2~3개를 병렬로 돌립니다.
 - **작업 폴더:** `~/.claude/handoffs/tasks/날짜-작업명/`에 지시서·결과·검토·인수인계 md를 둡니다.
 - **답변은 간결하게:** 결론과 핵심만 답합니다.
 - **인수인계 노트 7항목:** 목표, 확인된 사실, 적용한 변경, 검증, 막다른 길, 남은 계획, 환경. 기존 파일은 덮어쓰지 않고 덧붙이기와 정정만 합니다.
@@ -153,6 +160,7 @@ claude plugin marketplace add lumpen-mya/claude-handoff && claude plugin install
 - 신규 입력만 보면 위임은 기록된 모든 경우에 더 비쌌습니다. 이득은 메인 세션 캐시에 쌓이지 않는 읽기에서 나옵니다.
 - 다른 프로젝트에서 잰 손익분기(메인 100K·200K·300K에서 약 21·8·6회부터 위임이 이득)는 계산 가정이 달라 **우리 로그로는 재현되지 않았습니다.** 이 수치에는 기대지 않습니다.
 - **v0.3.1 구/신 비교** (같은 읽기 전용 과제, 헤드리스 CLI, 칸마다 1~2회, hv030 대 hv031 비교뿐): 첫 턴 입력이 워커 22K → 7K, 팀장 22K → 8K, 잡일 23K → 7K였고 답은 같았으며(4/4) 승급은 없었습니다. **확인됨**: 이 환경에서 첫 턴 입력 감소와 같은 답. **추정**: 실제 세션에서의 이득(헤드리스 첫 턴 값은 앱(~55K)보다 낮고 절대값은 환경마다 다름). **미확정**: runner 구/신 비교(n=1, 재시험에는 구 runner 기준값 없음, 첫 시험에서 Haiku가 명령에 옵션을 임의로 붙인 사례 있음). 통계가 아니라 방향 확인용입니다.
+- **v0.3.2의 효과는 추정입니다(측정 전).** 지금 근거는 한 세션에서 팀장 하나를 SendMessage로 두 번 이어 쓴 기록뿐입니다(첫 턴 입력 55K → 112K → 117K, 그중 103K·112K는 캐시 읽기). 새 에이전트는 약 11K에서 시작하므로, 담당 워커는 다시 읽기를 그보다 많이 아낄 때만 이득이고 캐시가 만료된 뒤 이어 쓰면 그 컨텍스트를 새 입력으로 다시 냅니다. 이어지는 일 2~3건을 담당 워커 방식과 새 워커 방식으로 돌려 첫 턴 입력·총 입력(가중)·호출 수·정확도를 비교할 계획입니다. 방법은 `SKILL.md`의 Measure에 있습니다.
 
 ## License
 MIT
