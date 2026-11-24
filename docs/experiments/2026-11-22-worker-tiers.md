@@ -67,3 +67,22 @@ Delegation did not clearly beat a single agent at this task size (C6 $12.6, A $1
 - The Haiku worker tier was never exercised (the task had no trivial modules).
 - Rule changes were made between rounds; later conditions are not strictly the same protocol as earlier ones.
 - Prices are estimates; absolute dollar figures are not reliable, relative ones are more so.
+
+## Addendum (2026-11-24): follow-up runs and v0.3.3
+Same task T5, one run per condition unless noted, all 5 runs succeeded (every file compiles, 327+ hidden tests).
+
+| Condition | Single change | Hidden tests | Cost |
+|---|---|---|---|
+| A4 (runs 2 and 3) | short output only, repeated | 331, 332 | $12.34, $11.44 |
+| D3 | D with the v0.3.2 installed lead (lead-alone and short-output rules) | 331 | $11.38 |
+| C6T | C6 without the per-module tier list; lead picks tiers from the general rule | 332 | $15.96 |
+| C6N | C6 without the 4-worker limit | 332 | $13.32 |
+
+- A4 over 3 runs averages about $11.96 vs A $13.7: the short-output effect reproduced.
+- D3: the lead again did all 12 modules alone; cost and score close to D.
+- C6T: the lead put all 4 workers on Opus; about +27% over the C6 average, about 50 minutes, same score.
+- C6N: 6 workers (Opus 4, Sonnet 2); about +6% over C6, same score, one self-test failure.
+- None of D3, C6T, C6N improved quality; C6T and C6N cost more and took longer.
+- Two runs were paused by an over-eager leak check (an agent grepped its own tool-result files, not the hidden tests); the check was loosened with the user's approval and both runs continued.
+
+v0.3.3 rules taken from this: the lead works alone by default (D1); it delegates only when at least two delegation conditions hold (D2, untested estimate) and records the decision (D4); when it delegates it follows the C rules with the worker tier written as a general rule (C18 generalised — C6T shows this can cost more than a fixed list); workers + helpers 4 at most.

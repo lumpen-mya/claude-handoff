@@ -1,7 +1,7 @@
 {
   "name": "handoff",
-  "version": "0.3.2",
-  "description": "Keep the main Claude Code session small: it only talks, a lead subagent writes self-contained briefs and picks a tier for each (runner/helper/worker), workers implement them in separate work areas, and structured handoff notes carry the state across sessions.",
+  "version": "0.3.3",
+  "description": "Keep the main Claude Code session small: it only talks, one Opus lead subagent does the job alone by default and splits it into tiered worker briefs (Opus/Sonnet/Haiku) only when delegation conditions hold, and structured handoff notes carry the state across sessions.",
   "author": {
     "name": "lumpen-mya"
   },
