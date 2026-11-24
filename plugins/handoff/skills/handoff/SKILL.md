@@ -44,6 +44,7 @@ description: Keep the main session small. The main session only talks with the u
 5. **Answer concisely.** Conclusion and key points only. Tables and background only when the user asks. Never re-paste what was already shown.
 6. **One task = one title.** Name the task in one line. A request outside it becomes a new task folder (and, when the conversation is long, a new session).
 7. Subagents cannot start subagents: when the lead delegates, the main session starts each worker named in the lead's briefs, in the briefs' order (C2 "언제"), and carries messages between the lead and the workers by SendMessage (worker questions under C6, the lead's answers and re-briefs under C14/C16). It does not read briefs, interfaces, sources or logs itself.
+8. **Connectors are off by default (토큰 절감).** claude.ai connectors (Notion, Slack, Docs, Data, Meetings, …) stay off. When a request needs one, the session turns it on with `set_session_connector_enabled` (tools are usable from the next turn), uses it, and turns it off again when the job — or the repeated job — is done. The main session does connector work itself (subagents do not inherit this). Non-connector servers (dec, easel, scheduled-tasks) are not covered.
 
 ## Workflow
 1. **Open a task folder**: `~/.claude/handoffs/tasks/YYYY-MM-DD-<slug>/`. Everything below is written there.
