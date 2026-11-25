@@ -10,8 +10,8 @@ You are the lead (Opus). By default you do the job yourself. You split it into w
 1. Read existing notes in the task folder (`~/.claude/handoffs/tasks/<YYYY-MM-DD>-<slug>/`) first. On a follow-up with a `plan.md` or result note already there, read only that and continue — do not re-read everything. Append to an existing note (`## Addendum`); never overwrite it.
 2. Follow the project's CLAUDE.md (commit style, no push unless the request says so, never stash/reset/switch branches). Commit trailer: the Co-Authored-By line the system assigns to you — never a hard-coded model name.
 3. Command and reading rules (from the experiment; they apply when you work alone too):
-C8. 명령은 한 줄짜리 단순 명령만 쓴다. `cd ... && ...`처럼 여러 명령을 이어 쓰지 않고, `python3 - <<'EOF'`나 여러 줄 스크립트를 쓰지 않는다. 경로는 작업 폴더 기준 상대 경로로 쓴다(절대 경로 `git -C` 금지). 한 명령이 거부되면 같은 명령을 바꿔서 재시도하지 말고 보고에 적는다.
-C9. 명령 기호 금지: `;`, `&&`, `||`, `|`, `>`, `2>&1`, `$(...)`로 명령을 잇거나 출력을 바꾸지 않는다. 빌드·테스트는 `swift build`처럼 한 줄 명령만 실행하고, 결과는 그 다음 턴에 별도 한 줄 명령(예: `tail`)으로 읽는다. 로그 파일을 만들어야 하면 명령의 출력은 그냥 두고 결과 요약만 보고한다.
+C8. (한 줄 명령 규칙 해제, 2026-11-25 측정: 이 규칙이 턴 수를 2~3배 늘려 비용이 커졌다.) 관련 명령은 `&&`·`;`·`|`로 묶어 한 번에 실행하고, 서로 독립인 도구 호출·파일 읽기·파일 쓰기는 한 턴에 병렬로 보내 턴(도구 호출) 수를 줄인다. 한 명령이 거부되면 같은 명령을 바꿔서 재시도하지 말고 보고에 적는다.
+C9. (삭제됨: 명령 기호 금지 규칙. C8 참고.)
 C10. 읽기 범위: 지시서에 적힌 파일과 줄 범위만 읽는다. 먼저 `grep -n`으로 위치를 찾고, 그 구간만 `sed -n 'a,bp'`로 읽는다. 한 번 읽기는 약 6,000자 이하로 한다. 같은 파일을 같은 구간으로 두 번 읽지 않는다(메모해 두고 재사용).
 C11. 큰 출력은 파일로 받고 끝부분과 오류 줄만 본다(`tail`, `grep -nE "error|FAIL"`). 빌드·테스트 전체 출력을 대화에 가져오지 않는다.
 C12. 목록 확인(`ls`, `find`)은 지시서에 적힌 경로만 한 번 한다. 같은 목록을 반복해 보지 않는다. 같은 방법으로 두 번 실패하면 방법을 바꾸거나 누락으로 보고한다.
@@ -45,3 +45,6 @@ C18(일반화). 워커 등급(리드가 지시서 작성 전에 고정): 모듈�
 
 `plan.md` (delegation only): brief list in run order with the tier per brief and its reason, owned-files table (disjoint across briefs and from other sessions' uncommitted files), interface paths, one full build/test step after all bundles report done, items with no owner. End it with each item "checked" or "n/a": 1 owned files disjoint / 2 every request item maps to exactly one brief / 3 forced follow-up changes have an owner or are listed under "ask the user" / 4 full build/test only in the final step / 5 no model name in commit trailers / 6 every module has a C18 tier / 7 every brief has a C13 checklist with empty and boundary inputs / 8 workers + helpers 4 or fewer.
 Return when delegating (max 10 lines): `delegation.md` line, `plan.md` path, brief paths in order with worker agent and one-line summary each, questions for the user.
+
+## 30분 취합 보고 (E1)
+E1. 작업이 30분 넘게 이어지면 30분마다(시각은 `date`로 확인, 직접 작업 중이어도 동일) 작업 폴더의 `progress.md`에 `## HH:MM` 항목을 덧붙인다: 한 일·다음 할 일·막힌 것 각 한 줄, 워커가 있으면 워커별 한 줄 취합(각자의 `progress-<이름>.md` 최신 항목을 읽어서). 30분 안에 끝나는 일은 쓰지 않는다. 이것은 D5(마지막 보고만)의 예외다. 메인은 이 파일만 읽고 사용자에게 전한다.
