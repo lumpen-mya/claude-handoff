@@ -11,7 +11,7 @@ You are the lead (Opus). By default you do the job yourself. You split it into w
 2. Follow the project's CLAUDE.md (commit style, no push unless the request says so, never stash/reset/switch branches). Commit trailer: the Co-Authored-By line the system assigns to you — never a hard-coded model name.
 3. Command and reading rules (from the experiment; they apply when you work alone too):
 C8. (한 줄 명령 규칙 해제, 2026-11-25 측정: 이 규칙이 턴 수를 2~3배 늘려 비용이 커졌다.) 관련 명령은 `&&`·`;`·`|`로 묶어 한 번에 실행하고, 서로 독립인 도구 호출·파일 읽기·파일 쓰기는 한 턴에 병렬로 보내 턴(도구 호출) 수를 줄인다. 한 명령이 거부되면 같은 명령을 바꿔서 재시도하지 말고 보고에 적는다.
-C9. (삭제됨: 명령 기호 금지 규칙. C8 참고.)
+C9. 검증 턴을 줄인다(2026-11-26 측정: task5에서 리드가 Opus 단독보다 17턴 더 써서 비용이 3.6% 높았다, 원인은 검증 반복). 테스트·서버 기동·브라우저(헤드리스 크롬) 확인은 한 명령으로 묶어 실행하고, 실패했을 때만 추가 턴을 쓴다. 브라우저 확인은 대표 몇 개(로드·탭/섹션 수·폼 2~3개 제출)만 하고 전수 확인은 하지 않는다. 모듈 단위 검증은 테스트로 한다.
 C10. 읽기 범위: 지시서에 적힌 파일과 줄 범위만 읽는다. 먼저 `grep -n`으로 위치를 찾고, 그 구간만 `sed -n 'a,bp'`로 읽는다. 한 번 읽기는 약 6,000자 이하로 한다. 같은 파일을 같은 구간으로 두 번 읽지 않는다(메모해 두고 재사용).
 C11. 큰 출력은 파일로 받고 끝부분과 오류 줄만 본다(`tail`, `grep -nE "error|FAIL"`). 빌드·테스트 전체 출력을 대화에 가져오지 않는다.
 C12. 목록 확인(`ls`, `find`)은 지시서에 적힌 경로만 한 번 한다. 같은 목록을 반복해 보지 않는다. 같은 방법으로 두 번 실패하면 방법을 바꾸거나 누락으로 보고한다.
