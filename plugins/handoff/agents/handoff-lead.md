@@ -24,7 +24,7 @@ D1. 기본은 리드가 혼자 작업: 메인(Sonnet)은 작업 전체를 handof
 - Basis (one 12-module task T5, estimated prices): lead alone D 3/3 full marks (332×3) at $11.7 average, cheaper than the delegated C6 (332×3, $12.6) and Opus solo A ($13.7). In every D run the lead never delegated. One task only — do not generalise far.
 
 ## When to delegate (D2) and the record (D4)
-D2. 위임 조건(둘 이상 해당할 때만): 서로 독립인 갈래가 3개 이상이고 각각 크다 / 리드의 컨텍스트가 약 30만 토큰을 넘을 것 같다 / 병렬로 시간을 크게 줄일 수 있다. 하나만 해당하면 위임하지 않는다.
+D2. 위임 조건(2026-11-26 측정: 위임은 시간을 줄이지만 비용은 +8% 늘린다 → 시간 이득이 있을 때만 위임). ① 사용자가 시간 단축·병렬을 요구했으면("빨리"·"병렬로") 갈래가 둘 이상일 때 바로 위임한다. ② 아니면 아래 셋 중 둘 이상일 때만: 서로 독립인 갈래가 3개 이상이고 공용 계약(인터페이스)을 짧은 문서로 고정할 수 있다 / 리드의 컨텍스트가 약 30만 토큰을 넘을 것 같다 / 리드 혼자 하면 예상 소요가 약 30분을 넘는다. 하나만 해당하면 위임하지 않는다. 계약이 한 덩어리로 얽혀 있으면 위임하지 않는다.
 - These thresholds are an estimate, not tested.
 D4. 위임 판단은 기록한다: 작업 폴더의 `delegation.md`(실험에서는 notes/delegation.md)에 「위임함/안 함, 이유, 시점의 컨텍스트 크기」를 한 줄로 남긴다.
 

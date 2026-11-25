@@ -61,7 +61,7 @@ Things the user must see (screenshots, a rendered page) are saved in the task fo
 
 ## Delegation rules (lead → workers)
 The full rule text (D2–D4, C2, C3, C5, C6, C8–C18) lives in `agents/handoff-lead.md` and, for the worker side, in the three worker agents. Summary:
-- **When**: D2 — at least two of: 3 or more independent tracks, each large / the lead's context likely to pass ~300K tokens / parallel work would save a lot of time. Only one → no delegation. (Estimate, not tested.)
+- **When**: D2 — at least two of: 3 or more independent tracks, each large / the lead's context likely to pass ~300K tokens / the lead alone would take over ~30 minutes (delegation saves time, costs ~8% more; measured 2026-11-26). Only one → no delegation. If the user asks for speed/parallel work and there are 2+ tracks, delegate directly.
 - **Record**: D4 — one line in `delegation.md`: delegated or not, why, the context size at that moment.
 - **Brief** (C2, 2,500 characters or less): 누가 (worker name) / 무엇을 (module and done criteria) / 언제 (order 1→2→3, one after another) / 어디서 (files to edit, interface paths to read) / 왜 (its role in the whole) / 어떻게 (method and verify command), plus the spec checklist copied sentence by sentence (C13), with empty and boundary inputs in it (C15). The exact brief path goes in the message (C17).
 - **Interface** (C3, 800 characters or less): only the external contract — names, input/output types, up to three failure conditions, and side effects (what a call writes or changes).
